@@ -63,6 +63,11 @@ final class Player {
                 System.err.println(lastSeen[i][2] + " @ (" + lastSeen[i][0] + ", " + lastSeen[i][1] + ")");
             }
 
+            System.err.println("----");
+            for (int i = 0; i < inChase.length; i++) {
+                System.err.println(i + " @ " + inChase[i]);
+            }
+
             for (int b = 0; b < bustersPerPlayer; b++) {
                 for (int g = 0; g < ghosts.length; g++) {
                     if (busters[b][0] == ghosts[g][0] && busters[b][1] == ghosts[g][1] && !ghostIsVisible(ghosts, g)) {
@@ -113,6 +118,7 @@ final class Player {
                 if (inChase[i] != -1) {
                     if (busters[i][0] == lastSeen[inChase[i]][0] && busters[i][1] == lastSeen[inChase[i]][1]
                             && !ghostIsVisible(ghosts, inChase[i])) {
+                        //TODO: I have not idea why, but this unlock is not working
                         lastSeen[inChase[i]][2] = 0;
                         inChase[i] = -1; // well, someone else captured that ghost...
                     } else {
@@ -125,6 +131,7 @@ final class Player {
                 // searching for ghost
 
                 //Look for ghosts have been last seen...
+                //TODO: when chasing a ghost, do not chase one that is already being chased
                 double closestGhost = Double.MAX_VALUE;
                 int closestGhostId = -1;
                 for (int g = 0; g < lastSeen.length; g++) {
@@ -183,7 +190,7 @@ final class Player {
         for (int i = 0; i < busters.length; i++) {
             if (busters[i][2] != busterId && busters[i][3] == 0) {
                 if (dist > Math.pow(x - busters[i][0], 2) + Math.pow(y - busters[i][1], 2)) {
-                    System.err.println("not closest");
+                    System.err.println("For point (" + x + ", " + y + ") buster " + i + " is closer than me " + busterId);
                     return false;
                 }
             }
