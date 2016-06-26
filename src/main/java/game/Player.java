@@ -1,19 +1,33 @@
 package game;
 
-import java.util.Collections;
-import java.util.Map;
-import java.util.Scanner;
+import java.util.*;
 
 final class Player {
 
     public static void main(String args[]) {
+        Random random = new Random();
+
         Scanner in = new Scanner(System.in);
         int bustersPerPlayer = in.nextInt(); // the amount of busters you control
         int ghostCount = in.nextInt(); // the amount of ghosts on the map
         int myTeamId = in.nextInt(); // if this is 0, your base is on the top left of the map, if it is one, on the bottom right
 
+        int[][] lastSeen = new int[ghostCount][3]; // (x, y) / 0 -> unknown, 1 -> valid, 2-> trapped, 3 -> in chase
+        int[][] visitedPoints = new int[bustersPerPlayer * 400][2]; // (x, y)
+        int visitedPointsCount = 0;
+
+        int[] inChase = new int[bustersPerPlayer]; // busterId => ghostId ; -1 => not chasing anything
+
+        Arrays.fill(inChase, -1);
+
         // game loop
         while (true) {
+            int[][] busters = new int[bustersPerPlayer][5]; //(x, y) / id / idle / ghostId
+            int[][] ghosts = new int[ghostCount][3]; // (x, y) / id /
+
+            int buster = 0;
+            int ghost = 0;
+
             int entities = in.nextInt(); // the number of busters and ghosts visible to you
             for (int i = 0; i < entities; i++) {
                 int entityId = in.nextInt(); // buster id or ghost id
@@ -22,16 +36,160 @@ final class Player {
                 int entityType = in.nextInt(); // the team id if it is a buster, -1 if it is a ghost.
                 int state = in.nextInt(); // For busters: 0=idle, 1=carrying a ghost.
                 int value = in.nextInt(); // For busters: Ghost id being carried. For ghosts: number of busters attempting to trap this ghost.
+
+                if (entityType == myTeamId) {
+                    busters[buster][0] = x;
+                    busters[buster][1] = y;
+                    busters[buster][2] = entityId;
+                    busters[buster][3] = state;
+                    busters[buster][4] = value;
+                    buster++;
+
+                    visitedPoints[visitedPointsCount][0] = x;
+                    visitedPoints[visitedPointsCount][1] = y;
+                    visitedPointsCount++;
+                } else if (entityType == -1) {
+                    ghosts[ghost][0] = x;
+                    ghosts[ghost][1] = y;
+                    ghosts[ghost][2] = entityId;
+                    lastSeen[entityId][0] = x;
+                    lastSeen[entityId][1] = y;
+                    lastSeen[entityId][2] = 1;
+                    ghost++;
+                }
+            }
+
+            for (int i = 0; i < lastSeen.length; i++) {
+                System.err.println(lastSeen[i][2] + " @ (" + lastSeen[i][0] + ", " + lastSeen[i][1] + ")");
+            }
+
+            for (int b = 0; b < bustersPerPlayer; b++) {
+                for (int g = 0; g < ghosts.length; g++) {
+                    if (busters[b][0] == ghosts[g][0] && busters[b][1] == ghosts[g][1] && !ghostIsVisible(ghosts, g)) {
+                        ghosts[g][2] = 0;
+                        break;
+                    }
+                }
             }
 
             for (int i = 0; i < bustersPerPlayer; i++) {
+                if (busters[i][3] == 1) {
+                    //carrying a ghost
+                    if (myTeamId == 0) {
+                        double distToCorner = Math.pow(busters[i][0], 2) + Math.pow(busters[i][1], 2);
+                        if (distToCorner < 2_560_000.0) {
+                            System.out.println("RELEASE");
+                        } else {
+                            System.out.println("MOVE 0 0");
+                        }
+                    } else {
+                        double distToCorner = Math.pow(16000 - busters[i][0], 2) + Math.pow(9000 - busters[i][1], 2);
+                        if (distToCorner < 2_560_000.0) {
+                            System.out.println("RELEASE");
+                        } else {
+                            System.out.println("MOVE 16000 9000");
+                        }
+                    }
+                    continue;
+                }
 
-                // Write an action using System.out.println()
-                // To debug: System.err.println("Debug messages...");
+                //trapping a ghost
+                boolean trapped = false;
+                for (int g = 0; g < ghost && !trapped; g++) {
+                    double dist = Math.pow(ghosts[g][0] - busters[i][0], 2) + Math.pow(ghosts[g][1] - busters[i][1], 2);
+                    if (dist > 810_000.0 && dist < 3_097_600.0) {
+                        System.out.println("BUST " + ghosts[g][2]);
+                        lastSeen[ghosts[g][2]][2] = 2;
+                        inChase[i] = -1; // not chasing ghosts anymore
+                        trapped = true;
+                    }
+                }
 
-                System.out.println("MOVE 8000 4500"); // MOVE x y | BUST id | RELEASE
+                if (trapped) {
+                    continue;
+                }
+
+                // if chasing a ghost
+                if (inChase[i] != -1) {
+                    if (busters[i][0] == lastSeen[inChase[i]][0] && busters[i][1] == lastSeen[inChase[i]][1]
+                            && !ghostIsVisible(ghosts, inChase[i])) {
+                        lastSeen[inChase[i]][2] = 0;
+                        inChase[i] = -1; // well, someone else captured that ghost...
+                    } else {
+                        // otherwise, keep doing so
+                        System.out.println("MOVE " + lastSeen[inChase[i]][0] + " " + lastSeen[inChase[i]][1]);
+                        continue;
+                    }
+                }
+
+                // searching for ghost
+
+                //Look for ghosts have been last seen...
+                double closestGhost = Double.MAX_VALUE;
+                int closestGhostId = -1;
+                for (int g = 0; g < lastSeen.length; g++) {
+                    if (lastSeen[g][2] == 1) {
+                        double dist = Math.pow(lastSeen[g][0] - busters[i][0], 2) + Math.pow(lastSeen[g][1] - busters[i][1], 2);
+                        if (dist < closestGhost) {
+                            closestGhost = dist;
+                            closestGhostId = g;
+                        }
+                    }
+                }
+
+                if (closestGhostId != -1) {
+                    lastSeen[closestGhostId][2] = 3;
+                    inChase[i] = closestGhostId;
+                    System.out.println("MOVE " + lastSeen[closestGhostId][0] + " " + lastSeen[closestGhostId][1]);
+                    continue;
+                }
+
+                int x, y;
+                do {
+                    // Searching for unknown ghosts
+                    x = random.nextInt(16000);
+                    y = random.nextInt(9000);
+                } while (!isClosestAvailableBuster(x, y, i, busters)
+                        && isExploredPoint(x, y, visitedPoints, visitedPointsCount));
+
+                System.out.println("MOVE " + x + " " + y); // MOVE x y | BUST id | RELEASE
             }
         }
+    }
+
+    private static boolean ghostIsVisible(int[][] ghosts, int id) {
+        for (int[] ghost : ghosts) {
+            if (ghost[2] == id) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static boolean isExploredPoint(int x, int y, int[][] visitedPoints, int visitedPointsCount) {
+        for (int i = 0; i < visitedPointsCount; i++) {
+            if (Math.pow(x - visitedPoints[i][0], 2) + Math.pow(y - visitedPoints[i][1], 2) < 4_840_000.0) {
+                System.err.println("explored");
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static boolean isClosestAvailableBuster(int x, int y, int busterId, int[][] busters) {
+        double dist = Math.pow(x - busters[busterId][0], 2) + Math.pow(y - busters[busterId][1], 2);
+        for (int i = 0; i < busters.length; i++) {
+            if (busters[i][2] != busterId && busters[i][3] == 0) {
+                if (dist > Math.pow(x - busters[i][0], 2) + Math.pow(y - busters[i][1], 2)) {
+                    System.err.println("not closest");
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     static abstract class AI {
