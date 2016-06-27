@@ -1,6 +1,10 @@
 package game;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Random;
+import java.util.Scanner;
 
 final class Player {
 
@@ -10,23 +14,35 @@ final class Player {
         Scanner in = new Scanner(System.in);
         int bustersPerPlayer = in.nextInt(); // the amount of busters you control
         int ghostCount = in.nextInt(); // the amount of ghosts on the map
-        int myTeamId = in.nextInt(); // if this is 0, your base is on the top left of the map, if it is one, on the bottom right
+        int myTeamId = in.nextInt(); // if this is 0, your base is on the top left of the map, if it is one, on the
+                                     // bottom right
 
         int[][] lastSeen = new int[ghostCount][3]; // (x, y) / 0 -> unknown, 1 -> valid, 2-> trapped, 3 -> in chase
         int[][] visitedPoints = new int[bustersPerPlayer * 400][2]; // (x, y)
         int visitedPointsCount = 0;
 
+        int moving[][] = new int[bustersPerPlayer][3]; // (x, y) / 1 -> going, 0 -> not going
+
         int[] inChase = new int[bustersPerPlayer]; // busterId => ghostId ; -1 => not chasing anything
 
+        int[][] enemyBusters = new int[bustersPerPlayer][3]; // (x, y) / id / 0 -> idle, 1 -> carrying a ghost
+
+        int[] lastStun = new int[bustersPerPlayer]; // last round where buster stunned someone
+
+        int roundCount = 0;
+
         Arrays.fill(inChase, -1);
+        Arrays.fill(lastStun, -20);
 
         // game loop
         while (true) {
-            int[][] busters = new int[bustersPerPlayer][5]; //(x, y) / id / idle / ghostId
+            roundCount++;
+            int[][] busters = new int[bustersPerPlayer][5]; // (x, y) / id / idle / ghostId
             int[][] ghosts = new int[ghostCount][3]; // (x, y) / id /
 
             int buster = 0;
             int ghost = 0;
+            int enemyBuster = 0;
 
             int entities = in.nextInt(); // the number of busters and ghosts visible to you
             for (int i = 0; i < entities; i++) {
@@ -35,7 +51,8 @@ final class Player {
                 int y = in.nextInt(); // position of this buster / ghost
                 int entityType = in.nextInt(); // the team id if it is a buster, -1 if it is a ghost.
                 int state = in.nextInt(); // For busters: 0=idle, 1=carrying a ghost.
-                int value = in.nextInt(); // For busters: Ghost id being carried. For ghosts: number of busters attempting to trap this ghost.
+                int value = in.nextInt(); // For busters: Ghost id being carried. For ghosts: number of busters
+                                          // attempting to trap this ghost.
 
                 if (entityType == myTeamId) {
                     busters[buster][0] = x;
@@ -56,6 +73,12 @@ final class Player {
                     lastSeen[entityId][1] = y;
                     lastSeen[entityId][2] = 1;
                     ghost++;
+                } else {
+                    enemyBusters[enemyBuster][0] = x;
+                    enemyBusters[enemyBuster][1] = y;
+                    enemyBusters[enemyBuster][2] = entityId;
+                    enemyBusters[enemyBuster][3] = value;
+                    enemyBuster++;
                 }
             }
 
@@ -68,18 +91,17 @@ final class Player {
                 System.err.println(i + " @ " + inChase[i]);
             }
 
-            for (int b = 0; b < bustersPerPlayer; b++) {
-                for (int g = 0; g < ghosts.length; g++) {
-                    if (busters[b][0] == ghosts[g][0] && busters[b][1] == ghosts[g][1] && !ghostIsVisible(ghosts, g)) {
-                        ghosts[g][2] = 0;
-                        break;
-                    }
-                }
+            System.err.println("----");
+            for (int i = 0; i < moving.length; i++) {
+                System.err.println(i + " @ (" + moving[i][0] + ", " + moving[i][1] + ")" + " | " + moving[i][2]);
             }
 
             for (int i = 0; i < bustersPerPlayer; i++) {
+
+                // return ghost to base
                 if (busters[i][3] == 1) {
-                    //carrying a ghost
+                    moving[i][2] = 0;
+                    // carrying a ghost
                     if (myTeamId == 0) {
                         double distToCorner = Math.pow(busters[i][0], 2) + Math.pow(busters[i][1], 2);
                         if (distToCorner < 2_560_000.0) {
@@ -98,7 +120,28 @@ final class Player {
                     continue;
                 }
 
-                //trapping a ghost
+                // if found an enemy carrying a ghost, attack him
+                // TODO: two busters should not stun the same enemy id
+                if (lastStun[i] + 20 > roundCount) {
+                    boolean stun = false;
+                    for (int e = 0; e < enemyBuster && !stun; e++) {
+                        if (enemyBusters[e][3] == 1) {
+                            double dist = Math.pow(enemyBusters[e][0] - busters[i][0], 2) +
+                                    Math.pow(enemyBusters[e][1] - busters[i][1], 2);
+                            if (dist < 3_097_600.0) {
+                                System.out.println("STUN " + enemyBusters[i][2]);
+                                stun = true;
+                            }
+                        }
+                    }
+
+                    if (stun) {
+                        lastStun[i] = roundCount;
+                        continue;
+                    }
+                }
+
+                // trapping a ghost
                 boolean trapped = false;
                 for (int g = 0; g < ghost && !trapped; g++) {
                     double dist = Math.pow(ghosts[g][0] - busters[i][0], 2) + Math.pow(ghosts[g][1] - busters[i][1], 2);
@@ -111,6 +154,7 @@ final class Player {
                 }
 
                 if (trapped) {
+                    moving[i][2] = 0;
                     continue;
                 }
 
@@ -118,25 +162,46 @@ final class Player {
                 if (inChase[i] != -1) {
                     if (busters[i][0] == lastSeen[inChase[i]][0] && busters[i][1] == lastSeen[inChase[i]][1]
                             && !ghostIsVisible(ghosts, inChase[i])) {
-                        //TODO: I have not idea why, but this unlock is not working
                         lastSeen[inChase[i]][2] = 0;
                         inChase[i] = -1; // well, someone else captured that ghost...
+                        moving[i][2] = 0;
                     } else {
                         // otherwise, keep doing so
+                        moving[i][2] = 0;
                         System.out.println("MOVE " + lastSeen[inChase[i]][0] + " " + lastSeen[inChase[i]][1]);
+                        continue;
+                    }
+                }
+
+                // if doing nothing special and found an enemy, attack him
+                // TODO: two busters should not stun the same enemy id
+                if (lastStun[i] + 20 > roundCount) {
+                    boolean stun = false;
+                    for (int e = 0; e < enemyBuster && !stun; e++) {
+                        double dist = Math.pow(enemyBusters[e][0] - busters[i][0], 2) +
+                                Math.pow(enemyBusters[e][1] - busters[i][1], 2);
+                        if (dist < 3_097_600.0) {
+                            System.out.println("STUN " + enemyBusters[i][2]);
+                            stun = true;
+                        }
+                    }
+
+                    if (stun) {
+                        lastStun[i] = roundCount;
                         continue;
                     }
                 }
 
                 // searching for ghost
 
-                //Look for ghosts have been last seen...
-                //TODO: when chasing a ghost, do not chase one that is already being chased
+                // Look for ghosts have been last seen...
+                // TODO: when chasing a ghost, do not chase one that is already being chased
                 double closestGhost = Double.MAX_VALUE;
                 int closestGhostId = -1;
                 for (int g = 0; g < lastSeen.length; g++) {
                     if (lastSeen[g][2] == 1) {
-                        double dist = Math.pow(lastSeen[g][0] - busters[i][0], 2) + Math.pow(lastSeen[g][1] - busters[i][1], 2);
+                        double dist = Math.pow(lastSeen[g][0] - busters[i][0], 2)
+                                + Math.pow(lastSeen[g][1] - busters[i][1], 2);
                         if (dist < closestGhost) {
                             closestGhost = dist;
                             closestGhostId = g;
@@ -151,6 +216,18 @@ final class Player {
                     continue;
                 }
 
+                // continue movement
+                if (moving[i][2] == 1) {
+                    double dist = Math.pow(moving[i][0] - busters[i][0], 2)
+                            + Math.pow(moving[i][1] - busters[i][1], 2);
+                    if (dist > 640_000) {
+                        // move hasn't finished, keep going
+                        System.out.println("MOVE " + moving[i][0] + " " + moving[i][1]);
+                        continue;
+                    }
+                }
+
+                // finally, find spot to go to
                 int x, y;
                 do {
                     // Searching for unknown ghosts
@@ -159,6 +236,9 @@ final class Player {
                 } while (!isClosestAvailableBuster(x, y, i, busters)
                         && isExploredPoint(x, y, visitedPoints, visitedPointsCount));
 
+                moving[i][0] = x;
+                moving[i][1] = y;
+                moving[i][2] = 1;
                 System.out.println("MOVE " + x + " " + y); // MOVE x y | BUST id | RELEASE
             }
         }
@@ -190,7 +270,8 @@ final class Player {
         for (int i = 0; i < busters.length; i++) {
             if (busters[i][2] != busterId && busters[i][3] == 0) {
                 if (dist > Math.pow(x - busters[i][0], 2) + Math.pow(y - busters[i][1], 2)) {
-                    System.err.println("For point (" + x + ", " + y + ") buster " + i + " is closer than me " + busterId);
+                    System.err.println("For point (" + x + ", " + y + ") buster " + i + " is closer than me "
+                            + busterId);
                     return false;
                 }
             }
