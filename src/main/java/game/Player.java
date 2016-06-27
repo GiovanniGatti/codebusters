@@ -141,6 +141,7 @@ final class Player {
                     }
                 }
 
+                //TODO: but still persists when trapping a ghost
                 // trapping a ghost
                 boolean trapped = false;
                 for (int g = 0; g < ghost && !trapped; g++) {
