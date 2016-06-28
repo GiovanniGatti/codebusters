@@ -102,6 +102,12 @@ final class Player {
                 System.err.println(ghosts[i][2] + " @ (" + ghosts[i][0] + ", " + ghosts[i][1] + ")");
             }
 
+            System.err.println("----enemy busters----");
+            for (int i = 0; i < enemyBuster; i++) {
+                System.err.println(enemyBusters[i][2] + " @ (" + enemyBusters[i][0] + ", " + enemyBusters[i][1] + ") ->"
+                        + enemyBusters[i][3]);
+            }
+
             for (int i = 0; i < bustersPerPlayer; i++) {
 
                 // return ghost to base
@@ -121,7 +127,7 @@ final class Player {
 
                 // if found an enemy carrying a ghost, attack him
                 // TODO: two busters should not stun the same enemy id
-                if (lastStun[i] + 20 > roundCount) {
+                if (lastStun[i] + 20 < roundCount) {
                     boolean stun = false;
                     for (int e = 0; e < enemyBuster && !stun; e++) {
                         if (enemyBusters[e][3] == 1) {
@@ -175,7 +181,7 @@ final class Player {
 
                 // if doing nothing special and found an enemy, attack him
                 // TODO: two busters should not stun the same enemy id
-                if (lastStun[i] + 20 > roundCount) {
+                if (lastStun[i] + 20 < roundCount) {
                     boolean stun = false;
                     for (int e = 0; e < enemyBuster && !stun; e++) {
                         double dist = Math.pow(enemyBusters[e][0] - busters[i][0], 2) +
