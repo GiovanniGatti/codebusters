@@ -111,7 +111,6 @@ final class Player {
             for (int i = 0; i < bustersPerPlayer; i++) {
 
                 // return ghost to base
-                //TODO: ghost being released too late. Why?
                 if (busters[i][3] == 1) {
                     moving[i][2] = 0;
                     // carrying a ghost
@@ -119,8 +118,23 @@ final class Player {
                             Math.pow(myTeamId * 9000 - busters[i][1], 2);
                     if (distToCorner < 2_560_000.0) {
                         System.out.println("RELEASE");
+                    } else if (myTeamId == 0) {
+                        //compute intersection point between a line and a circle,
+                        // in which both pass through the point (0, 0)
+
+                        //y = A*x + B, where B = 0
+                        double a = ((double) busters[i][1]) / busters[i][0];
+
+                        //(x-a)^2 + (y-b)^2 = R^2
+                        double x = Math.sqrt(2560000.0 / (1.0 + Math.pow(a, 2)));
+                        double y = a * x;
+                        System.out.println("MOVE " + ((int) (x - 1.0)) + " " + ((int) (y - 1.0)));
                     } else {
-                        System.out.println("MOVE 0 0");
+                        //playing on mirror mode
+                        double a = ((double) 16000 - busters[i][1]) / (9000 - busters[i][0]);
+                        double x = Math.sqrt(2560000.0 / (1.0 + Math.pow(a, 2)));
+                        double y = a * x;
+                        System.out.println("MOVE " + ((int) (16001 - x)) + " " + ((int) (9001 - y)));
                     }
                     continue;
                 }
