@@ -28,7 +28,7 @@ final class Player {
 
         int[] inChase = new int[bustersPerPlayer]; // busterId => ghostId ; -1 => not chasing anything
 
-        int[][] enemyBusters = new int[bustersPerPlayer][4]; // (x, y) / id / 0 -> idle, 1 -> carrying a ghost
+        int[][] enemyBusters = new int[bustersPerPlayer][5]; // (x, y) / id / value / state
 
         int[] lastStun = new int[bustersPerPlayer]; // last round where buster stunned someone
 
@@ -53,9 +53,14 @@ final class Player {
                 int x = in.nextInt();
                 int y = in.nextInt(); // position of this buster / ghost
                 int entityType = in.nextInt(); // the team id if it is a buster, -1 if it is a ghost.
-                int state = in.nextInt(); // For busters: 0=idle, 1=carrying a ghost.
-                int value = in.nextInt(); // For busters: Ghost id being carried. For ghosts: number of busters
-                // attempting to trap this ghost.
+
+                // For busters: 0=idle, 1=carrying a ghost, 2=stunned buster, 3=buster is trapping a ghost
+                // For ghosts: ghost's stamina
+                int state = in.nextInt();
+
+                // For busters: Ghost id being carried/trapped or the number of turns it can move again
+                // For ghosts: number of busters attempting to trap this ghost move again.
+                int value = in.nextInt();
 
                 if (entityType == myTeamId) {
                     busters[buster][0] = x;
@@ -81,6 +86,7 @@ final class Player {
                     enemyBusters[enemyBuster][1] = y;
                     enemyBusters[enemyBuster][2] = entityId;
                     enemyBusters[enemyBuster][3] = value;
+                    enemyBusters[enemyBuster][4] = state;
                     enemyBuster++;
                 }
             }
@@ -147,7 +153,7 @@ final class Player {
                 if (lastStun[i] + 20 < roundCount) {
                     boolean stun = false;
                     for (int e = 0; e < enemyBuster && !stun; e++) {
-                        if (enemyBusters[e][3] == 1) {
+                        if (enemyBusters[e][4] == 1 || enemyBusters[e][4] == 3) {
                             double dist = Math.pow(enemyBusters[e][0] - busters[i][0], 2) +
                                     Math.pow(enemyBusters[e][1] - busters[i][1], 2);
                             if (dist < 3_097_600.0) {
@@ -196,15 +202,16 @@ final class Player {
                 }
 
                 // if doing nothing special and found an enemy, attack him
-                // TODO: two busters should not stun the same enemy id
                 if (lastStun[i] + 20 < roundCount) {
                     boolean stun = false;
                     for (int e = 0; e < enemyBuster && !stun; e++) {
-                        double dist = Math.pow(enemyBusters[e][0] - busters[i][0], 2) +
-                                Math.pow(enemyBusters[e][1] - busters[i][1], 2);
-                        if (dist < 3_097_600.0) {
-                            System.out.println("STUN " + enemyBusters[e][2]);
-                            stun = true;
+                        if(enemyBusters[e][4] != 2) {
+                            double dist = Math.pow(enemyBusters[e][0] - busters[i][0], 2) +
+                                    Math.pow(enemyBusters[e][1] - busters[i][1], 2);
+                            if (dist < 3_097_600.0) {
+                                System.out.println("STUN " + enemyBusters[e][2]);
+                                stun = true;
+                            }
                         }
                     }
 
