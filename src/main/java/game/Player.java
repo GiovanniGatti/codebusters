@@ -8,6 +8,9 @@ import java.util.Scanner;
 
 final class Player {
 
+    //TODO: deal with ghosts that have different endurance
+    //TODO: stun before busting ghost if ghost is being busted
+    //TODO: Clean up code
     public static void main(String args[]) {
         Random random = new Random();
 
@@ -160,7 +163,6 @@ final class Player {
                     }
                 }
 
-                //TODO: but still persists when trapping a ghost
                 // trapping a ghost
                 boolean trapped = false;
                 for (int g = 0; g < ghost && !trapped; g++) {
@@ -215,7 +217,6 @@ final class Player {
                 // searching for ghost
 
                 // Look for ghosts have been last seen...
-                // TODO: when chasing a ghost, do not chase one that is already being chased
                 double closestGhost = Double.MAX_VALUE;
                 int closestGhostId = -1;
                 for (int g = 0; g < lastSeen.length; g++) {
