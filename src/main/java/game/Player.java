@@ -140,6 +140,7 @@ final class Player {
                         System.out.println("MOVE " + ((int) (x - 1.0)) + " " + ((int) (y - 1.0)));
                     } else {
                         //playing on mirror mode
+                        //FIXME: something is still not perfect
                         double a = ((double) 16000 - busters[i][1]) / (9000 - busters[i][0]);
                         double x = Math.sqrt(2560000.0 / (1.0 + Math.pow(a, 2)));
                         double y = a * x;
