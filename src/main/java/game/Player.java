@@ -15,7 +15,7 @@ final class Player {
         int bustersPerPlayer = in.nextInt(); // the amount of busters you control
         int ghostCount = in.nextInt(); // the amount of ghosts on the map
         int myTeamId = in.nextInt(); // if this is 0, your base is on the top left of the map, if it is one, on the
-                                     // bottom right
+        // bottom right
 
         int[][] lastSeen = new int[ghostCount][3]; // (x, y) / 0 -> unknown, 1 -> valid, 2-> trapped, 3 -> in chase
         int[][] visitedPoints = new int[bustersPerPlayer * 400][2]; // (x, y)
@@ -25,7 +25,7 @@ final class Player {
 
         int[] inChase = new int[bustersPerPlayer]; // busterId => ghostId ; -1 => not chasing anything
 
-        int[][] enemyBusters = new int[bustersPerPlayer][3]; // (x, y) / id / 0 -> idle, 1 -> carrying a ghost
+        int[][] enemyBusters = new int[bustersPerPlayer][4]; // (x, y) / id / 0 -> idle, 1 -> carrying a ghost
 
         int[] lastStun = new int[bustersPerPlayer]; // last round where buster stunned someone
 
@@ -52,7 +52,7 @@ final class Player {
                 int entityType = in.nextInt(); // the team id if it is a buster, -1 if it is a ghost.
                 int state = in.nextInt(); // For busters: 0=idle, 1=carrying a ghost.
                 int value = in.nextInt(); // For busters: Ghost id being carried. For ghosts: number of busters
-                                          // attempting to trap this ghost.
+                // attempting to trap this ghost.
 
                 if (entityType == myTeamId) {
                     busters[buster][0] = x;
@@ -82,40 +82,39 @@ final class Player {
                 }
             }
 
+            System.err.println("----last seen ghosts---");
             for (int i = 0; i < lastSeen.length; i++) {
                 System.err.println(lastSeen[i][2] + " @ (" + lastSeen[i][0] + ", " + lastSeen[i][1] + ")");
             }
 
-            System.err.println("----");
+            System.err.println("----in chase---");
             for (int i = 0; i < inChase.length; i++) {
                 System.err.println(i + " @ " + inChase[i]);
             }
 
-            System.err.println("----");
+            System.err.println("----moving---");
             for (int i = 0; i < moving.length; i++) {
                 System.err.println(i + " @ (" + moving[i][0] + ", " + moving[i][1] + ")" + " | " + moving[i][2]);
+            }
+
+            System.err.println("----ghosts----");
+            for (int i = 0; i < ghost; i++) {
+                System.err.println(ghosts[i][2] + " @ (" + ghosts[i][0] + ", " + ghosts[i][1] + ")");
             }
 
             for (int i = 0; i < bustersPerPlayer; i++) {
 
                 // return ghost to base
+                //TODO: ghost being released too late. Why?
                 if (busters[i][3] == 1) {
                     moving[i][2] = 0;
                     // carrying a ghost
-                    if (myTeamId == 0) {
-                        double distToCorner = Math.pow(busters[i][0], 2) + Math.pow(busters[i][1], 2);
-                        if (distToCorner < 2_560_000.0) {
-                            System.out.println("RELEASE");
-                        } else {
-                            System.out.println("MOVE 0 0");
-                        }
+                    double distToCorner = Math.pow(myTeamId * 16000 - busters[i][0], 2) +
+                            Math.pow(myTeamId * 9000 - busters[i][1], 2);
+                    if (distToCorner < 2_560_000.0) {
+                        System.out.println("RELEASE");
                     } else {
-                        double distToCorner = Math.pow(16000 - busters[i][0], 2) + Math.pow(9000 - busters[i][1], 2);
-                        if (distToCorner < 2_560_000.0) {
-                            System.out.println("RELEASE");
-                        } else {
-                            System.out.println("MOVE 16000 9000");
-                        }
+                        System.out.println("MOVE 0 0");
                     }
                     continue;
                 }
@@ -162,7 +161,7 @@ final class Player {
                 // if chasing a ghost
                 if (inChase[i] != -1) {
                     if (busters[i][0] == lastSeen[inChase[i]][0] && busters[i][1] == lastSeen[inChase[i]][1]
-                            && !ghostIsVisible(ghosts, inChase[i])) {
+                            && !ghostIsVisible(ghosts, ghost, inChase[i])) {
                         lastSeen[inChase[i]][2] = 0;
                         inChase[i] = -1; // well, someone else captured that ghost...
                         moving[i][2] = 0;
@@ -245,9 +244,9 @@ final class Player {
         }
     }
 
-    private static boolean ghostIsVisible(int[][] ghosts, int id) {
-        for (int[] ghost : ghosts) {
-            if (ghost[2] == id) {
+    private static boolean ghostIsVisible(int[][] ghosts, int count, int id) {
+        for (int i = 0; i < count; i++) {
+            if (ghosts[i][2] == id) {
                 return true;
             }
         }
