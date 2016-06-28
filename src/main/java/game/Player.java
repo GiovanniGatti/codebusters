@@ -148,7 +148,7 @@ final class Player {
                             double dist = Math.pow(enemyBusters[e][0] - busters[i][0], 2) +
                                     Math.pow(enemyBusters[e][1] - busters[i][1], 2);
                             if (dist < 3_097_600.0) {
-                                System.out.println("STUN " + enemyBusters[i][2]);
+                                System.out.println("STUN " + enemyBusters[e][2]);
                                 stun = true;
                             }
                         }
@@ -201,7 +201,7 @@ final class Player {
                         double dist = Math.pow(enemyBusters[e][0] - busters[i][0], 2) +
                                 Math.pow(enemyBusters[e][1] - busters[i][1], 2);
                         if (dist < 3_097_600.0) {
-                            System.out.println("STUN " + enemyBusters[i][2]);
+                            System.out.println("STUN " + enemyBusters[e][2]);
                             stun = true;
                         }
                     }
