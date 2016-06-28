@@ -8,8 +8,6 @@ import java.util.Scanner;
 
 final class Player {
 
-    //TODO: deal with ghosts that have different endurance
-    //TODO: stun before busting ghost if ghost is being busted
     //TODO: Clean up code
     public static void main(String args[]) {
         Random random = new Random();
@@ -151,10 +149,13 @@ final class Player {
 
                 // if found an enemy carrying a ghost, attack him
                 // TODO: two busters should not stun the same enemy id
+                // TODO: stop and move closer if enemy is not in perfect range...
+                // TODO: detect when he is in the fog?
                 if (lastStun[i] + 20 < roundCount) {
                     boolean stun = false;
                     for (int e = 0; e < enemyBuster && !stun; e++) {
-                        if (enemyBusters[e][4] == 1 || enemyBusters[e][4] == 3) {
+                        if (enemyBusters[e][4] == 1 || enemyBusters[e][4] == 3 ||
+                                (enemyBusters[e][4] != 2 && thereIsGhostsInRange(ghosts, ghostCount, busters[i]))) {
                             double dist = Math.pow(enemyBusters[e][0] - busters[i][0], 2) +
                                     Math.pow(enemyBusters[e][1] - busters[i][1], 2);
                             if (dist < 3_097_600.0) {
@@ -276,6 +277,17 @@ final class Player {
     private static boolean ghostIsVisible(int[][] ghosts, int count, int id) {
         for (int i = 0; i < count; i++) {
             if (ghosts[i][2] == id) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static boolean thereIsGhostsInRange(int[][] ghosts, int ghostCount, int[] buster) {
+        for (int i = 0; i < ghostCount; i++) {
+            double dist = Math.pow(ghosts[i][0] - buster[0], 2) + Math.pow(ghosts[i][1] - buster[1], 2);
+            if (dist < 4_840_000.0) {
                 return true;
             }
         }
