@@ -50,7 +50,7 @@ final class Match implements Callable<Match.MatchResult> {
 
         return new MatchResult(
                 playerCurrentState.getPlayerScore(),
-                opponentCurrentState.getOpponentScore(),
+                opponentCurrentState.getPlayerScore(),
                 rounds,
                 getWinner(playerCurrentState, opponentCurrentState, rounds));
     }

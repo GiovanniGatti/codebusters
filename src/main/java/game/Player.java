@@ -5,10 +5,11 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Random;
 import java.util.Scanner;
+import java.util.function.IntSupplier;
 
 final class Player {
 
-    //TODO: Clean up code
+    // TODO: Clean up code
     public static void main(String args[]) {
         Random random = new Random();
 
@@ -18,28 +19,17 @@ final class Player {
         int myTeamId = in.nextInt(); // if this is 0, your base is on the top left of the map, if it is one, on the
         // bottom right
 
-        int[][] lastSeen = new int[ghostCount][3]; // (x, y) / 0 -> unknown, 1 -> valid, 2-> trapped, 3 -> in chase
-        int[][] visitedPoints = new int[bustersPerPlayer * 400][2]; // (x, y)
+        State gameState = new State(bustersPerPlayer, ghostCount, myTeamId);
+
         int visitedPointsCount = 0;
-
-        int moving[][] = new int[bustersPerPlayer][3]; // (x, y) / 1 -> going, 0 -> not going
-
-        int[] inChase = new int[bustersPerPlayer]; // busterId => ghostId ; -1 => not chasing anything
-
-        int[][] enemyBusters = new int[bustersPerPlayer][5]; // (x, y) / id / value / state
-
-        int[] lastStun = new int[bustersPerPlayer]; // last round where buster stunned someone
-
-        int roundCount = 0;
-
-        Arrays.fill(inChase, -1);
-        Arrays.fill(lastStun, -20);
 
         // game loop
         while (true) {
-            roundCount++;
-            int[][] busters = new int[bustersPerPlayer][5]; // (x, y) / id / idle / ghostId
-            int[][] ghosts = new int[ghostCount][3]; // (x, y) / id /
+            gameState.incrementRound();
+
+            Buster[] enemyBusters = new Buster[bustersPerPlayer]; // (x, y) / id / value / state
+            Buster[] busters = new Buster[bustersPerPlayer]; // (x, y) / id / idle / ghostId
+            Ghost[] ghosts = new Ghost[ghostCount];
 
             int buster = 0;
             int ghost = 0;
@@ -61,30 +51,24 @@ final class Player {
                 int value = in.nextInt();
 
                 if (entityType == myTeamId) {
-                    busters[buster][0] = x;
-                    busters[buster][1] = y;
-                    busters[buster][2] = entityId;
-                    busters[buster][3] = state;
-                    busters[buster][4] = value;
+                    Buster buster1 = new Buster(entityId, x, y, state, value);
+                    busters[buster] = buster1;
                     buster++;
 
-                    visitedPoints[visitedPointsCount][0] = x;
-                    visitedPoints[visitedPointsCount][1] = y;
+                    gameState.visitedPoints[visitedPointsCount][0] = x;
+                    gameState.visitedPoints[visitedPointsCount][1] = y;
                     visitedPointsCount++;
                 } else if (entityType == -1) {
-                    ghosts[ghost][0] = x;
-                    ghosts[ghost][1] = y;
-                    ghosts[ghost][2] = entityId;
-                    lastSeen[entityId][0] = x;
-                    lastSeen[entityId][1] = y;
-                    lastSeen[entityId][2] = 1;
+                    Ghost ghost1 = new Ghost(entityId, x, y, state, value);
+                    ghosts[ghost] = ghost1;
                     ghost++;
+
+                    gameState.lastSeen[entityId][0] = x;
+                    gameState.lastSeen[entityId][1] = y;
+                    gameState.lastSeen[entityId][2] = 1;
                 } else {
-                    enemyBusters[enemyBuster][0] = x;
-                    enemyBusters[enemyBuster][1] = y;
-                    enemyBusters[enemyBuster][2] = entityId;
-                    enemyBusters[enemyBuster][3] = value;
-                    enemyBusters[enemyBuster][4] = state;
+                    Buster buster1 = new Buster(entityId, x, y, state, value);
+                    enemyBusters[buster] = buster1;
                     enemyBuster++;
                 }
             }
@@ -111,7 +95,8 @@ final class Player {
 
             System.err.println("----enemy busters----");
             for (int i = 0; i < enemyBuster; i++) {
-                System.err.println(enemyBusters[i][2] + " @ (" + enemyBusters[i][0] + ", " + enemyBusters[i][1] + ") ->"
+                System.err.println(enemyBusters[i][2] + " @ (" + enemyBusters[i][0] + ", " + enemyBusters[i][1]
+                        + ") ->"
                         + enemyBusters[i][3]);
             }
 
@@ -126,19 +111,19 @@ final class Player {
                     if (distToCorner < 2_560_000.0) {
                         System.out.println("RELEASE");
                     } else if (myTeamId == 0) {
-                        //compute intersection point between a line and a circle,
+                        // compute intersection point between a line and a circle,
                         // in which both pass through the point (0, 0)
 
-                        //y = A*x + B, where B = 0
+                        // y = A*x + B, where B = 0
                         double a = ((double) busters[i][1]) / busters[i][0];
 
-                        //(x-a)^2 + (y-b)^2 = R^2
+                        // (x-a)^2 + (y-b)^2 = R^2
                         double x = Math.sqrt(2560000.0 / (1.0 + Math.pow(a, 2)));
                         double y = a * x;
                         System.out.println("MOVE " + ((int) (x - 1.0)) + " " + ((int) (y - 1.0)));
                     } else {
-                        //playing on mirror mode
-                        //FIXME: something is still not perfect
+                        // playing on mirror mode
+                        // FIXME: something is still not perfect
                         double a = ((double) 16000 - busters[i][1]) / (9000 - busters[i][0]);
                         double x = Math.sqrt(2560000.0 / (1.0 + Math.pow(a, 2)));
                         double y = a * x;
@@ -207,7 +192,7 @@ final class Player {
                 if (lastStun[i] + 20 < roundCount) {
                     boolean stun = false;
                     for (int e = 0; e < enemyBuster && !stun; e++) {
-                        if(enemyBusters[e][4] != 2) {
+                        if (enemyBusters[e][4] != 2) {
                             double dist = Math.pow(enemyBusters[e][0] - busters[i][0], 2) +
                                     Math.pow(enemyBusters[e][1] - busters[i][1], 2);
                             if (dist < 3_097_600.0) {
@@ -320,30 +305,57 @@ final class Player {
 
         return true;
     }
+    
+    static class StateMachineAI extends AI {
+        int bustersPerPlayer, ghostCount, myTeamId;
+
+        StateMachineAI(IntSupplier inputSupplier) {
+            super(Collections.emptyMap(), inputSupplier);
+            this.bustersPerPlayer = inputSupplier.getAsInt(); // the amount of busters you control
+            this.ghostCount = inputSupplier.getAsInt(); // the amount of ghosts on the map
+            this.myTeamId = inputSupplier.getAsInt(); // if this is 0, your base is on the top left of the map, if it is one, on the
+            // bottom right
+        }
+
+        @Override
+        Action play() {
+            return null;
+        }
+
+        @Override
+        void reset() {
+            //ILB
+        }
+    }
 
     static abstract class AI {
 
         private final Map<String, Object> conf;
+        private final IntSupplier inputSupplier;
 
         /**
          * Builds an AI with specified configuration.<br>
          * If the AI does not need a configuration, an empty one may be provided.<br>
          * It is also recommended to create a default configuration.
          */
-        AI(Map<String, Object> conf) {
+        AI(Map<String, Object> conf, IntSupplier inputSupplier) {
             this.conf = Collections.unmodifiableMap(conf);
+            this.inputSupplier = inputSupplier;
         }
-
+        
         /**
          * Implements the IA algorithm
          *
-         * @param current the current state
          * @return the best action found
          */
-        abstract Action play(State current);
+        abstract Action play();
 
         Map<String, Object> getConf() {
             return conf;
+        }
+
+        int readInput(){
+            return inputSupplier.getAsInt();
         }
 
         /**
@@ -354,18 +366,130 @@ final class Player {
         abstract void reset();
     }
 
+    static class Entity {
+        private final int id;
+        private final int x;
+        private final int y;
+
+        Entity(int id, int x, int y) {
+            this.id = id;
+            this.x = x;
+            this.y = y;
+        }
+
+        int getX() {
+            return x;
+        }
+
+        int getY() {
+            return y;
+        }
+    }
+
+    final static class Buster extends Entity {
+        private final BusterState state;
+        private final int value;
+
+        Buster(int id, int x, int y, int state, int value) {
+            super(id, x, y);
+            this.value = value;
+            switch (state) {
+            case 0:
+                this.state = BusterState.IDLE;
+                break;
+            case 1:
+                this.state = BusterState.CARRYING_GHOST;
+                break;
+            case 2:
+                this.state = BusterState.STUNNED;
+                break;
+            case 3:
+                this.state = BusterState.TRAPPING;
+                break;
+            default:
+                throw new IllegalStateException("Unknown buster state " + state);
+            }
+        }
+
+        public BusterState getState() {
+            return state;
+        }
+
+        /**
+         * Ghost id being carried/trapped or the number of turns it can move again
+         */
+        public int getValue() {
+            return value;
+        }
+    }
+
+    final static class Ghost extends Entity {
+        private final int stamina;
+        private final int trappersCount;
+
+        Ghost(int id, int x, int y, int stamina, int trappersCount) {
+            super(id, EntityType.GHOST, x, y);
+            this.stamina = stamina;
+            this.trappersCount = trappersCount;
+        }
+
+        int getStamina() {
+            return stamina;
+        }
+
+        int getTrappersCount() {
+            return trappersCount;
+        }
+    }
+    
+    enum BusterState {
+        IDLE, CARRYING_GHOST, STUNNED, TRAPPING
+    }
+
+    enum Team
+
     /**
      * Represents the game state
      */
     static final class State implements Cloneable {
 
-        private int playerScore;
-        private int opponentScore;
+        static final int MAX_NUMBER_OF_ROUNDS = 400;
 
-        State() {
-            playerScore = 0;
-            opponentScore = 0;
-            // TODO: implement what a game state is (all game input variables)
+        // Permanent values
+        private final int bustersPerPlayer;
+        private final int ghostCount;
+        private final int myTeamId; // TODO: keep it an int or change it to enum?
+
+        private final int[][] lastSeen;
+        private final int[][] visitedPoints;
+        private final int[][] moving;
+        private final int[] inChase;
+        private final int[] lastStun;
+
+        // Turn state
+        private int round;
+        private int playerScore;
+        private Buster[] busters;
+        private Buster[] enemyBusters;
+        private Ghost[] ghosts;
+
+        State(int bustersPerPlayer, int ghostCount, int myTeamId) {
+            this.bustersPerPlayer = bustersPerPlayer;
+            this.ghostCount = ghostCount;
+            this.myTeamId = myTeamId;
+
+            this.lastSeen = new int[ghostCount][3];
+            this.visitedPoints = new int[bustersPerPlayer * MAX_NUMBER_OF_ROUNDS][2];
+            this.moving = new int[bustersPerPlayer][3];
+            this.inChase = new int[bustersPerPlayer];
+            this.lastStun = new int[bustersPerPlayer];
+
+            Arrays.fill(inChase, -1);
+            Arrays.fill(lastStun, -20);
+        }
+
+        void incrementRound() {
+            round++;
         }
 
         /**
@@ -386,8 +510,28 @@ final class Player {
             return playerScore;
         }
 
-        int getOpponentScore() {
-            return opponentScore;
+        public Buster[] getBusters() {
+            return busters;
+        }
+
+        public void setBusters(Buster[] busters) {
+            this.busters = busters;
+        }
+
+        public Buster[] getEnemyBusters() {
+            return enemyBusters;
+        }
+
+        public void setEnemyBusters(Buster[] enemyBusters) {
+            this.enemyBusters = enemyBusters;
+        }
+
+        public Ghost[] getGhosts() {
+            return ghosts;
+        }
+
+        public void setGhosts(Ghost[] ghosts) {
+            this.ghosts = ghosts;
         }
     }
 
