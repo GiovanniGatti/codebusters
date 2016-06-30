@@ -1,6 +1,8 @@
 package game;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.function.IntSupplier;
@@ -24,18 +26,150 @@ final class Player {
 
     static class RoleBasedAI extends AI {
 
+        static final int MAX_NUMBER_OF_ROUNDS = 400;
+
+        private final int bustersPerPlayer;
+        private final int ghostCount;
+
+        private final List<ExploredPoint> exploredPoints;
+
+        private final int myTeamId;
+        private final TargetPoint[] targetPoints;
+        private final GhostStatus[] ghostStatuses;
+        private int knownGhosts;
+
+        private int round = 0;
+
+        // round variables
+        private List<Buster> busters;
+        private List<Buster> enemyBusters;
+        private List<Ghost> ghosts;
+
         RoleBasedAI(IntSupplier inputSupplier) {
             super(Collections.emptyMap(), inputSupplier);
+
+            this.bustersPerPlayer = readInput();
+            this.ghostCount = readInput();
+            this.myTeamId = readInput();
+
+            this.exploredPoints = new ArrayList<>(bustersPerPlayer * MAX_NUMBER_OF_ROUNDS);
+
+            this.targetPoints = new TargetPoint[bustersPerPlayer];
+            for (int i = 0; i < targetPoints.length; i++) {
+                this.targetPoints[i] = new TargetPoint(-1, -1, BusterRole.NONE);
+            }
+
+            this.knownGhosts = 0;
+            this.ghostStatuses = new GhostStatus[ghostCount];
+            for (int i = 0; i < ghostStatuses.length; i++) {
+                this.ghostStatuses[i] = new GhostStatus(0, 0, GhostPosState.UNKNOWN);
+            }
         }
 
         @Override
         Action[] play() {
+            // TODO: implement
+
+            round++;
             return new Action[0];
         }
 
         @Override
         void reset() {
 
+        }
+
+        /*
+         * How to test it?
+         */
+        private static Action explore(
+                TargetPoint[] targetPoints,
+                List<ExploredPoint> exploredPoints,
+                int knownGhosts) {
+
+            return null;
+        }
+
+        private void loadInputState() {
+            this.busters = new ArrayList<>(bustersPerPlayer);
+            this.enemyBusters = new ArrayList<>(bustersPerPlayer);
+            this.ghosts = new ArrayList<>(ghostCount);
+
+            int entities = readInput(); // the number of busters and ghosts visible to you
+            for (int i = 0; i < entities; i++) {
+                int entityId = readInput();
+                int x = readInput();
+                int y = readInput();
+                int entityType = readInput();
+                int state = readInput();
+                int value = readInput();
+
+                if (entityType == myTeamId) {
+                    busters.add(new Player.Buster(entityId, x, y, state, value));
+                    exploredPoints.add(new ExploredPoint(x, y));
+                } else if (entityType == -1) {
+                    ghosts.add(new Player.Ghost(entityId, x, y, state, value));
+
+                    if (ghostStatuses[i].state == GhostPosState.UNKNOWN) {
+                        ghostStatuses[i].x = x;
+                        ghostStatuses[i].y = y;
+                        ghostStatuses[i].state = GhostPosState.FOUND;
+                        knownGhosts++;
+                    }
+                } else {
+                    enemyBusters.add(new Player.Buster(entityId, x, y, state, value));
+                }
+            }
+        }
+
+        private static class TargetPoint {
+            int x;
+            int y;
+            BusterRole role;
+
+            TargetPoint(int x, int y, BusterRole role) {
+                this.x = x;
+                this.y = y;
+                this.role = role;
+            }
+        }
+
+        private enum BusterRole {
+            NONE, EXPLORER, TRAPPER, STEALER, BODYGUARD
+        }
+
+        private static class GhostStatus {
+            int x, y;
+            GhostPosState state;
+
+            private GhostStatus(int x, int y, GhostPosState state) {
+                this.x = x;
+                this.y = y;
+                this.state = state;
+            }
+
+            @Override
+            public String toString() {
+                return "(" + x + ", " + y + ") | " + state.name();
+            }
+        }
+
+        enum GhostPosState {
+            UNKNOWN, FOUND, TRAPPED, HUTING, LOST
+        }
+
+        private static class ExploredPoint {
+            final int x, y;
+
+            ExploredPoint(int x, int y) {
+                this.x = x;
+                this.y = y;
+            }
+
+            @Override
+            public String toString() {
+                return "(" + x + ", " + y + ")";
+            }
         }
     }
 
@@ -125,20 +259,20 @@ final class Player {
             super(id, x, y);
             this.value = value;
             switch (state) {
-                case 0:
-                    this.state = BusterState.IDLE;
-                    break;
-                case 1:
-                    this.state = BusterState.CARRYING_GHOST;
-                    break;
-                case 2:
-                    this.state = BusterState.STUNNED;
-                    break;
-                case 3:
-                    this.state = BusterState.TRAPPING;
-                    break;
-                default:
-                    throw new IllegalStateException("Unknown buster state " + state);
+            case 0:
+                this.state = BusterState.IDLE;
+                break;
+            case 1:
+                this.state = BusterState.CARRYING_GHOST;
+                break;
+            case 2:
+                this.state = BusterState.STUNNED;
+                break;
+            case 3:
+                this.state = BusterState.TRAPPING;
+                break;
+            default:
+                throw new IllegalStateException("Unknown buster state " + state);
             }
         }
 
