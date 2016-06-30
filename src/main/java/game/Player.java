@@ -1,330 +1,413 @@
 package game;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Scanner;
 import java.util.function.IntSupplier;
 
 final class Player {
-
-    // TODO: Clean up code
+    
     public static void main(String args[]) {
-        Random random = new Random();
-
         Scanner in = new Scanner(System.in);
-        int bustersPerPlayer = in.nextInt(); // the amount of busters you control
-        int ghostCount = in.nextInt(); // the amount of ghosts on the map
-        int myTeamId = in.nextInt(); // if this is 0, your base is on the top left of the map, if it is one, on the
-        // bottom right
 
-        State gameState = new State(bustersPerPlayer, ghostCount, myTeamId);
-
-        int visitedPointsCount = 0;
+        AI player = new StateMachineAI(in::nextInt);
 
         // game loop
         while (true) {
-            gameState.incrementRound();
+            Action[] actions = player.play();
 
-            Buster[] enemyBusters = new Buster[bustersPerPlayer]; // (x, y) / id / value / state
-            Buster[] busters = new Buster[bustersPerPlayer]; // (x, y) / id / idle / ghostId
-            Ghost[] ghosts = new Ghost[ghostCount];
-
-            int buster = 0;
-            int ghost = 0;
-            int enemyBuster = 0;
-
-            int entities = in.nextInt(); // the number of busters and ghosts visible to you
-            for (int i = 0; i < entities; i++) {
-                int entityId = in.nextInt(); // buster id or ghost id
-                int x = in.nextInt();
-                int y = in.nextInt(); // position of this buster / ghost
-                int entityType = in.nextInt(); // the team id if it is a buster, -1 if it is a ghost.
-
-                // For busters: 0=idle, 1=carrying a ghost, 2=stunned buster, 3=buster is trapping a ghost
-                // For ghosts: ghost's stamina
-                int state = in.nextInt();
-
-                // For busters: Ghost id being carried/trapped or the number of turns it can move again
-                // For ghosts: number of busters attempting to trap this ghost move again.
-                int value = in.nextInt();
-
-                if (entityType == myTeamId) {
-                    Buster buster1 = new Buster(entityId, x, y, state, value);
-                    busters[buster] = buster1;
-                    buster++;
-
-                    gameState.visitedPoints[visitedPointsCount][0] = x;
-                    gameState.visitedPoints[visitedPointsCount][1] = y;
-                    visitedPointsCount++;
-                } else if (entityType == -1) {
-                    Ghost ghost1 = new Ghost(entityId, x, y, state, value);
-                    ghosts[ghost] = ghost1;
-                    ghost++;
-
-                    gameState.lastSeen[entityId][0] = x;
-                    gameState.lastSeen[entityId][1] = y;
-                    gameState.lastSeen[entityId][2] = 1;
-                } else {
-                    Buster buster1 = new Buster(entityId, x, y, state, value);
-                    enemyBusters[buster] = buster1;
-                    enemyBuster++;
-                }
-            }
-
-            System.err.println("----last seen ghosts---");
-            for (int i = 0; i < lastSeen.length; i++) {
-                System.err.println(lastSeen[i][2] + " @ (" + lastSeen[i][0] + ", " + lastSeen[i][1] + ")");
-            }
-
-            System.err.println("----in chase---");
-            for (int i = 0; i < inChase.length; i++) {
-                System.err.println(i + " @ " + inChase[i]);
-            }
-
-            System.err.println("----moving---");
-            for (int i = 0; i < moving.length; i++) {
-                System.err.println(i + " @ (" + moving[i][0] + ", " + moving[i][1] + ")" + " | " + moving[i][2]);
-            }
-
-            System.err.println("----ghosts----");
-            for (int i = 0; i < ghost; i++) {
-                System.err.println(ghosts[i][2] + " @ (" + ghosts[i][0] + ", " + ghosts[i][1] + ")");
-            }
-
-            System.err.println("----enemy busters----");
-            for (int i = 0; i < enemyBuster; i++) {
-                System.err.println(enemyBusters[i][2] + " @ (" + enemyBusters[i][0] + ", " + enemyBusters[i][1]
-                        + ") ->"
-                        + enemyBusters[i][3]);
-            }
-
-            for (int i = 0; i < bustersPerPlayer; i++) {
-
-                // return ghost to base
-                if (busters[i][3] == 1) {
-                    moving[i][2] = 0;
-                    // carrying a ghost
-                    double distToCorner = Math.pow(myTeamId * 16000 - busters[i][0], 2) +
-                            Math.pow(myTeamId * 9000 - busters[i][1], 2);
-                    if (distToCorner < 2_560_000.0) {
-                        System.out.println("RELEASE");
-                    } else if (myTeamId == 0) {
-                        // compute intersection point between a line and a circle,
-                        // in which both pass through the point (0, 0)
-
-                        // y = A*x + B, where B = 0
-                        double a = ((double) busters[i][1]) / busters[i][0];
-
-                        // (x-a)^2 + (y-b)^2 = R^2
-                        double x = Math.sqrt(2560000.0 / (1.0 + Math.pow(a, 2)));
-                        double y = a * x;
-                        System.out.println("MOVE " + ((int) (x - 1.0)) + " " + ((int) (y - 1.0)));
-                    } else {
-                        // playing on mirror mode
-                        // FIXME: something is still not perfect
-                        double a = ((double) 16000 - busters[i][1]) / (9000 - busters[i][0]);
-                        double x = Math.sqrt(2560000.0 / (1.0 + Math.pow(a, 2)));
-                        double y = a * x;
-                        System.out.println("MOVE " + ((int) (16001 - x)) + " " + ((int) (9001 - y)));
-                    }
-                    continue;
-                }
-
-                // if found an enemy carrying a ghost, attack him
-                // TODO: two busters should not stun the same enemy id
-                // TODO: stop and move closer if enemy is not in perfect range...
-                // TODO: detect when he is in the fog?
-                if (lastStun[i] + 20 < roundCount) {
-                    boolean stun = false;
-                    for (int e = 0; e < enemyBuster && !stun; e++) {
-                        if (enemyBusters[e][4] == 1 || enemyBusters[e][4] == 3 ||
-                                (enemyBusters[e][4] != 2 && thereIsGhostsInRange(ghosts, ghostCount, busters[i]))) {
-                            double dist = Math.pow(enemyBusters[e][0] - busters[i][0], 2) +
-                                    Math.pow(enemyBusters[e][1] - busters[i][1], 2);
-                            if (dist < 3_097_600.0) {
-                                System.out.println("STUN " + enemyBusters[e][2]);
-                                stun = true;
-                            }
-                        }
-                    }
-
-                    if (stun) {
-                        lastStun[i] = roundCount;
-                        continue;
-                    }
-                }
-
-                // trapping a ghost
-                boolean trapped = false;
-                for (int g = 0; g < ghost && !trapped; g++) {
-                    double dist = Math.pow(ghosts[g][0] - busters[i][0], 2) + Math.pow(ghosts[g][1] - busters[i][1], 2);
-                    if (dist > 810_000.0 && dist < 3_097_600.0) {
-                        System.out.println("BUST " + ghosts[g][2]);
-                        lastSeen[ghosts[g][2]][2] = 2;
-                        inChase[i] = -1; // not chasing ghosts anymore
-                        trapped = true;
-                    }
-                }
-
-                if (trapped) {
-                    moving[i][2] = 0;
-                    continue;
-                }
-
-                // if chasing a ghost
-                if (inChase[i] != -1) {
-                    if (busters[i][0] == lastSeen[inChase[i]][0] && busters[i][1] == lastSeen[inChase[i]][1]
-                            && !ghostIsVisible(ghosts, ghost, inChase[i])) {
-                        lastSeen[inChase[i]][2] = 0;
-                        inChase[i] = -1; // well, someone else captured that ghost...
-                        moving[i][2] = 0;
-                    } else {
-                        // otherwise, keep doing so
-                        moving[i][2] = 0;
-                        System.out.println("MOVE " + lastSeen[inChase[i]][0] + " " + lastSeen[inChase[i]][1]);
-                        continue;
-                    }
-                }
-
-                // if doing nothing special and found an enemy, attack him
-                if (lastStun[i] + 20 < roundCount) {
-                    boolean stun = false;
-                    for (int e = 0; e < enemyBuster && !stun; e++) {
-                        if (enemyBusters[e][4] != 2) {
-                            double dist = Math.pow(enemyBusters[e][0] - busters[i][0], 2) +
-                                    Math.pow(enemyBusters[e][1] - busters[i][1], 2);
-                            if (dist < 3_097_600.0) {
-                                System.out.println("STUN " + enemyBusters[e][2]);
-                                stun = true;
-                            }
-                        }
-                    }
-
-                    if (stun) {
-                        lastStun[i] = roundCount;
-                        continue;
-                    }
-                }
-
-                // searching for ghost
-
-                // Look for ghosts have been last seen...
-                double closestGhost = Double.MAX_VALUE;
-                int closestGhostId = -1;
-                for (int g = 0; g < lastSeen.length; g++) {
-                    if (lastSeen[g][2] == 1) {
-                        double dist = Math.pow(lastSeen[g][0] - busters[i][0], 2)
-                                + Math.pow(lastSeen[g][1] - busters[i][1], 2);
-                        if (dist < closestGhost) {
-                            closestGhost = dist;
-                            closestGhostId = g;
-                        }
-                    }
-                }
-
-                if (closestGhostId != -1) {
-                    lastSeen[closestGhostId][2] = 3;
-                    inChase[i] = closestGhostId;
-                    System.out.println("MOVE " + lastSeen[closestGhostId][0] + " " + lastSeen[closestGhostId][1]);
-                    continue;
-                }
-
-                // continue movement
-                if (moving[i][2] == 1) {
-                    double dist = Math.pow(moving[i][0] - busters[i][0], 2)
-                            + Math.pow(moving[i][1] - busters[i][1], 2);
-                    if (dist > 640_000) {
-                        // move hasn't finished, keep going
-                        System.out.println("MOVE " + moving[i][0] + " " + moving[i][1]);
-                        continue;
-                    }
-                }
-
-                // finally, find spot to go to
-                int x, y;
-                do {
-                    // Searching for unknown ghosts
-                    x = random.nextInt(16000);
-                    y = random.nextInt(9000);
-                } while (!isClosestAvailableBuster(x, y, i, busters)
-                        && isExploredPoint(x, y, visitedPoints, visitedPointsCount));
-
-                moving[i][0] = x;
-                moving[i][1] = y;
-                moving[i][2] = 1;
-                System.out.println("MOVE " + x + " " + y); // MOVE x y | BUST id | RELEASE
+            for (Action action : actions) {
+                System.out.println(action.asString());
             }
         }
     }
 
-    private static boolean ghostIsVisible(int[][] ghosts, int count, int id) {
-        for (int i = 0; i < count; i++) {
-            if (ghosts[i][2] == id) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static boolean thereIsGhostsInRange(int[][] ghosts, int ghostCount, int[] buster) {
-        for (int i = 0; i < ghostCount; i++) {
-            double dist = Math.pow(ghosts[i][0] - buster[0], 2) + Math.pow(ghosts[i][1] - buster[1], 2);
-            if (dist < 4_840_000.0) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static boolean isExploredPoint(int x, int y, int[][] visitedPoints, int visitedPointsCount) {
-        for (int i = 0; i < visitedPointsCount; i++) {
-            if (Math.pow(x - visitedPoints[i][0], 2) + Math.pow(y - visitedPoints[i][1], 2) < 4_840_000.0) {
-                System.err.println("explored");
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static boolean isClosestAvailableBuster(int x, int y, int busterId, int[][] busters) {
-        double dist = Math.pow(x - busters[busterId][0], 2) + Math.pow(y - busters[busterId][1], 2);
-        for (int i = 0; i < busters.length; i++) {
-            if (busters[i][2] != busterId && busters[i][3] == 0) {
-                if (dist > Math.pow(x - busters[i][0], 2) + Math.pow(y - busters[i][1], 2)) {
-                    System.err.println("For point (" + x + ", " + y + ") buster " + i + " is closer than me "
-                            + busterId);
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }
-    
     static class StateMachineAI extends AI {
-        int bustersPerPlayer, ghostCount, myTeamId;
+
+        static final Random RANDOM = new Random();
+
+        static final int MAX_NUMBER_OF_ROUNDS = 400;
+
+        static final int VISIBILITY_RANGE = 2200;
+        static final int SQUARE_VISIBILITY_RANGE = VISIBILITY_RANGE * VISIBILITY_RANGE;
+
+        static final int STUN_RANGE = 1760;
+        static final int SQUARE_STUN_RANGE = STUN_RANGE * STUN_RANGE;
+
+        static final int MIN_BUST_RANGE = 900;
+        static final int SQUARE_MIN_BUST_RANGE = MIN_BUST_RANGE * MIN_BUST_RANGE;
+        static final int MAX_BUST_RANGE = 1760;
+        static final int SQUARE_MAX_BUST_RANGE = MAX_BUST_RANGE * MAX_BUST_RANGE;
+
+        static final int BUSTER_MAX_MOVEMENT_RANGE = 800;
+        static final int SQUARE_BUSTER_MAX_MOVEMENT_RANGE = BUSTER_MAX_MOVEMENT_RANGE * BUSTER_MAX_MOVEMENT_RANGE;
+
+        int bustersPerPlayer; // the amount of busters you control
+        int ghostCount; // the amount of ghosts on the map
+        int myTeamId; // if this is 0, your base is on the top left of the map, if it is one, on the bottom right
+        int baseX, baseY;
+
+        private final int[][] visitedPoints;
+        private int visitedPointsCount;
+
+        private final GhostPos[] foundGhosts;
+        private final Target[] movingTo;
+        private final int[] chasingGhost;
+        private final int[] lastStun;
+        private int round;
+        private int playerScore;
 
         StateMachineAI(IntSupplier inputSupplier) {
             super(Collections.emptyMap(), inputSupplier);
-            this.bustersPerPlayer = inputSupplier.getAsInt(); // the amount of busters you control
-            this.ghostCount = inputSupplier.getAsInt(); // the amount of ghosts on the map
-            this.myTeamId = inputSupplier.getAsInt(); // if this is 0, your base is on the top left of the map, if it is one, on the
-            // bottom right
+            this.bustersPerPlayer = readInput();
+            this.ghostCount = readInput();
+            this.myTeamId = readInput();
+            if (myTeamId == 0) {
+                this.baseX = 0;
+                this.baseY = 0;
+            } else {
+                this.baseX = 9_000;
+                this.baseY = 16_000;
+            }
+
+            this.visitedPoints = new int[bustersPerPlayer * MAX_NUMBER_OF_ROUNDS][2];
+            this.visitedPointsCount = 0;
+
+            this.foundGhosts = new GhostPos[ghostCount];
+            this.movingTo = new Target[bustersPerPlayer];
+            this.chasingGhost = new int[bustersPerPlayer];
+            this.lastStun = new int[bustersPerPlayer];
+
+            this.round = 0;
+            this.playerScore = 0;
+
+            for (int i = 0; i < foundGhosts.length; i++) {
+                foundGhosts[i] = new GhostPos(0, 0, GhostPosState.UNKNOWN);
+            }
+
+            for (int i = 0; i < movingTo.length; i++) {
+                movingTo[i] = new Target(0, 0, false);
+            }
+
+            Arrays.fill(chasingGhost, -1);
+            Arrays.fill(lastStun, -20);
         }
 
         @Override
-        Action play() {
-            return null;
+        Action[] play() {
+            this.round++;
+
+            Triple<List<Buster>, List<Buster>, List<Ghost>> triple = load();
+
+            List<Buster> busters = triple.x;
+            List<Buster> enemyBusters = triple.y;
+            List<Ghost> ghosts = triple.z;
+
+            printState(busters, enemyBusters, ghosts);
+
+            Action[] busterActions = new Action[bustersPerPlayer];
+
+            for (int i = 0; i < bustersPerPlayer; i++) {
+
+                Buster buster = busters.get(i);
+                Action action = searchBusterAction(buster, busters, enemyBusters, ghosts);
+                busterActions[i] = action;
+            }
+
+            return busterActions;
+        }
+
+        private Action searchBusterAction(
+                Buster buster,
+                List<Buster> busters,
+                List<Buster> enemyBusters,
+                List<Ghost> ghosts) {
+
+            int busterId = buster.getId();
+
+            // return ghost to base
+            Target target = movingTo[busterId];
+
+            if (buster.getState() == BusterState.CARRYING_GHOST) {
+                target.valid = false;
+                // carrying a ghost
+                double distToCorner = Math.pow(myTeamId * 16000 - buster.getX(), 2) +
+                        Math.pow(myTeamId * 9000 - buster.getY(), 2);
+                if (distToCorner < 2_560_000.0) {
+                    playerScore++;
+                    return new Release();
+                } else if (myTeamId == 0) {
+                    // compute intersection point between a line and a circle,
+                    // in which both pass through the point (0, 0)
+
+                    // y = A*x + B, where B = 0
+                    double a = ((double) buster.getY()) / buster.getX();
+
+                    // (x-a)^2 + (y-b)^2 = R^2
+                    double x = Math.sqrt(2560000.0 / (1.0 + Math.pow(a, 2)));
+                    double y = a * x;
+                    return new Move(((int) (x - 1.0)), ((int) (y - 1.0)));
+                } else {
+                    // playing on mirror mode
+                    // FIXME: something is still not perfect
+                    double a = ((double) 16000 - buster.getY()) / (9000 - buster.getX());
+                    double x = Math.sqrt(2560000.0 / (1.0 + Math.pow(a, 2)));
+                    double y = a * x;
+                    return new Move(((int) (16001.0 - x)), ((int) (9001.0 - y)));
+                }
+            }
+
+            // if found an enemy carrying a ghost, attack him
+            // TODO: two busters should not stun the same enemy id
+            // TODO: stop and move closer if enemy is not in perfect range...
+            // TODO: detect when he is in the fog?
+            if (lastStun[busterId] + 20 < round) {
+                for (Buster enemyBuster : enemyBusters) {
+                    BusterState state = enemyBuster.getState();
+                    if (state == BusterState.CARRYING_GHOST || state == BusterState.TRAPPING ||
+                            (state != BusterState.STUNNED && thereIsGhostsInRange(ghosts, buster))) {
+                        long dist = enemyBuster.squareDistTo(buster);
+                        if (dist < SQUARE_STUN_RANGE) {
+                            lastStun[busterId] = round;
+                            return new Stun(enemyBuster.getId());
+                        }
+                    }
+                }
+            }
+
+            // trapping a ghost
+            for (Ghost ghost : ghosts) {
+                double dist = buster.squareDistTo(ghost);
+                if (dist > SQUARE_MIN_BUST_RANGE && dist < SQUARE_MAX_BUST_RANGE) {
+                    int ghostId = ghost.getId();
+                    foundGhosts[ghostId].state = GhostPosState.TRAPPED;
+                    chasingGhost[busterId] = -1; // not chasing ghosts anymore
+                    target.valid = false;
+                    return new Bust(ghostId);
+                }
+            }
+
+            // if chasing a ghost
+            if (chasingGhost[busterId] != -1) {
+                target.valid = false;
+                int ghostId = chasingGhost[busterId];
+                GhostPos foundGhost = foundGhosts[ghostId];
+                if (buster.getX() == foundGhost.x && buster.getY() == foundGhost.y
+                        && !ghostIsVisible(ghosts, ghostId)) {
+                    foundGhost.state = GhostPosState.UNKNOWN;
+                    chasingGhost[busterId] = -1; // well, someone else captured that ghost...
+                } else {
+                    // otherwise, keep doing so
+                    return new Move(foundGhost.x, foundGhost.y);
+                }
+            }
+
+            // if doing nothing special and found an enemy, attack him
+            if (lastStun[busterId] + 20 < round) {
+                for (Buster enemyBuster : enemyBusters) {
+                    if (enemyBuster.getState() != BusterState.STUNNED) {
+                        double dist = buster.squareDistTo(enemyBuster);
+                        if (dist < SQUARE_STUN_RANGE) {
+                            lastStun[busterId] = round;
+                            return new Stun(enemyBuster.getId());
+                        }
+                    }
+                }
+            }
+
+            // searching for ghost
+
+            // Look for ghosts have been last seen...
+            double closestGhost = Double.MAX_VALUE;
+            int closestGhostId = -1;
+            for (int g = 0; g < foundGhosts.length; g++) {
+                GhostPos ghost = foundGhosts[g];
+                if (ghost.state != GhostPosState.UNKNOWN && ghost.state != GhostPosState.TRAPPED) {
+                    double dist = buster.squareDistTo(ghost.x, ghost.y);
+                    if (dist < closestGhost) {
+                        closestGhost = dist;
+                        closestGhostId = g;
+                    }
+                }
+            }
+
+            if (closestGhostId != -1) {
+                GhostPos foundGhost = foundGhosts[closestGhostId];
+                foundGhost.state = GhostPosState.IN_CHASE;
+                chasingGhost[busterId] = closestGhostId;
+                target.valid = false;
+                return new Move(foundGhost.x, foundGhost.y);
+            }
+
+            // continue movement
+            if (target.valid) {
+                double dist = buster.squareDistTo(target.x, target.y);
+                if (dist > SQUARE_BUSTER_MAX_MOVEMENT_RANGE) {
+                    // move hasn't finished, keep going
+                    return new Move(target.x, target.y);
+                }
+            }
+
+            // finally, find spot to go to
+            int x, y;
+            do {
+                // Searching for unknown ghosts
+                x = RANDOM.nextInt(16000);
+                y = RANDOM.nextInt(9000);
+            } while (!isClosestAvailableBuster(x, y, buster, busters)
+                    && isExploredPoint(x, y, visitedPoints, visitedPointsCount));
+
+            target.x = x;
+            target.y = y;
+            target.valid = true;
+            return new Move(x, y);
+        }
+
+        private Triple<List<Buster>, List<Buster>, List<Ghost>> load() {
+            List<Buster> busters = new ArrayList<>(bustersPerPlayer);
+            List<Buster> enemyBusters = new ArrayList<>(bustersPerPlayer);
+            List<Ghost> ghosts = new ArrayList<>(ghostCount);
+
+
+            int entities = readInput(); // the number of busters and ghosts visible to you
+            for (int i = 0; i < entities; i++) {
+                int entityId = readInput();
+                int x = readInput();
+                int y = readInput();
+                int entityType = readInput();
+                int state = readInput();
+                int value = readInput();
+
+                if (entityType == myTeamId) {
+                    busters.add(new Buster(entityId, x, y, state, value));
+
+                    visitedPoints[visitedPointsCount][0] = x;
+                    visitedPoints[visitedPointsCount][1] = y;
+                    visitedPointsCount++;
+                } else if (entityType == -1) {
+                    ghosts.add(new Ghost(entityId, x, y, state, value));
+
+                    foundGhosts[entityId] = new GhostPos(x, y, GhostPosState.FOUND);
+                } else {
+                    enemyBusters.add(new Buster(entityId, x, y, state, value));
+                }
+            }
+
+            return new Triple<>(busters, enemyBusters, ghosts);
+        }
+
+        private void printState(List<Buster> busters, List<Buster> enemyBusters, List<Ghost> ghosts) {
+            System.err.println("----last seen ghosts---");
+            for (int i = 0; i < foundGhosts.length; i++) {
+                System.err.println(i + " - " + foundGhosts[i]);
+            }
+
+            System.err.println("----chasing---");
+            for (int i = 0; i < chasingGhost.length; i++) {
+                System.err.println(i + " @ " + chasingGhost[i]);
+            }
+
+            System.err.println("----moving---");
+            for (int i = 0; i < movingTo.length; i++) {
+                System.err.println(i + " @ (" + movingTo[i]);
+            }
+
+            System.err.println("----ghosts----");
+            ghosts.forEach(System.err::println);
+
+            System.err.println("----my busters----");
+            busters.forEach(System.err::println);
+
+            System.err.println("----enemy busters----");
+            enemyBusters.forEach(System.err::println);
         }
 
         @Override
         void reset() {
             //ILB
+        }
+
+        private static boolean ghostIsVisible(List<Ghost> ghosts, int id) {
+            return ghosts.stream()
+                    .anyMatch(g -> g.getId() == id);
+        }
+
+        private static boolean thereIsGhostsInRange(List<Ghost> ghosts, Buster buster) {
+            return ghosts.stream()
+                    .anyMatch(g -> g.squareDistTo(buster) < SQUARE_VISIBILITY_RANGE);
+        }
+
+        private static boolean isExploredPoint(int x, int y, int[][] visitedPoints, int visitedPointsCount) {
+            for (int i = 0; i < visitedPointsCount; i++) {
+                int px = visitedPoints[i][0];
+                int py = visitedPoints[i][1];
+                if ((x - px) * (x - px) + (y - py) * (y - py) < SQUARE_VISIBILITY_RANGE) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static boolean isClosestAvailableBuster(int x, int y, Buster buster, List<Buster> busters) {
+            double dist = buster.squareDistTo(x, y);
+            return busters.stream()
+                    .filter(b -> b.getId() != buster.getId())
+                    .filter(b -> b.getState() == BusterState.IDLE)
+                    .map(b -> b.squareDistTo(x, y))
+                    .noneMatch(d -> d < dist);
+        }
+
+        private static class GhostPos {
+            int x, y;
+            GhostPosState state;
+
+            private GhostPos(int x, int y, GhostPosState state) {
+                this.x = x;
+                this.y = y;
+                this.state = state;
+            }
+
+            @Override
+            public String toString() {
+                return "(" + x + ", " + y + ") | " + state.name();
+            }
+        }
+
+        enum GhostPosState {
+            UNKNOWN, FOUND, TRAPPED, IN_CHASE
+        }
+
+        private static class Target {
+            int x, y;
+            boolean valid; // true if going to target point, false otherwise
+
+            Target(int x, int y, boolean valid) {
+                this.x = x;
+                this.y = y;
+                this.valid = valid;
+            }
+
+            @Override
+            public String toString() {
+                return "(" + x + ", " + y + ") | " + valid;
+            }
+        }
+
+        private static class Triple<X, Y, Z> {
+            private final X x;
+            private final Y y;
+            private final Z z;
+
+            Triple(X x, Y y, Z z) {
+                this.x = x;
+                this.y = y;
+                this.z = z;
+            }
         }
     }
 
@@ -342,19 +425,19 @@ final class Player {
             this.conf = Collections.unmodifiableMap(conf);
             this.inputSupplier = inputSupplier;
         }
-        
+
         /**
          * Implements the IA algorithm
          *
          * @return the best action found
          */
-        abstract Action play();
+        abstract Action[] play();
 
         Map<String, Object> getConf() {
             return conf;
         }
 
-        int readInput(){
+        int readInput() {
             return inputSupplier.getAsInt();
         }
 
@@ -377,12 +460,32 @@ final class Player {
             this.y = y;
         }
 
+        int getId() {
+            return id;
+        }
+
         int getX() {
             return x;
         }
 
         int getY() {
             return y;
+        }
+
+        long squareDistTo(Entity other) {
+            return squareDistTo(other.x, other.y);
+        }
+
+        long squareDistTo(int x, int y) {
+            return (this.x - x) * (this.x - x) + (this.y - y) * (this.y - y);
+        }
+
+        double distTo(Entity other) {
+            return Math.sqrt(squareDistTo(other.x, other.y));
+        }
+
+        double distTo(int x, int y) {
+            return Math.sqrt(squareDistTo(x, y));
         }
     }
 
@@ -394,20 +497,20 @@ final class Player {
             super(id, x, y);
             this.value = value;
             switch (state) {
-            case 0:
-                this.state = BusterState.IDLE;
-                break;
-            case 1:
-                this.state = BusterState.CARRYING_GHOST;
-                break;
-            case 2:
-                this.state = BusterState.STUNNED;
-                break;
-            case 3:
-                this.state = BusterState.TRAPPING;
-                break;
-            default:
-                throw new IllegalStateException("Unknown buster state " + state);
+                case 0:
+                    this.state = BusterState.IDLE;
+                    break;
+                case 1:
+                    this.state = BusterState.CARRYING_GHOST;
+                    break;
+                case 2:
+                    this.state = BusterState.STUNNED;
+                    break;
+                case 3:
+                    this.state = BusterState.TRAPPING;
+                    break;
+                default:
+                    throw new IllegalStateException("Unknown buster state " + state);
             }
         }
 
@@ -421,6 +524,13 @@ final class Player {
         public int getValue() {
             return value;
         }
+
+        @Override
+        public String toString() {
+            return super.id + " @ (" + super.x + ", " + super.y + ") | " +
+                    state.name() + " | " +
+                    "value=" + value;
+        }
     }
 
     final static class Ghost extends Entity {
@@ -428,7 +538,7 @@ final class Player {
         private final int trappersCount;
 
         Ghost(int id, int x, int y, int stamina, int trappersCount) {
-            super(id, EntityType.GHOST, x, y);
+            super(id, x, y);
             this.stamina = stamina;
             this.trappersCount = trappersCount;
         }
@@ -440,112 +550,114 @@ final class Player {
         int getTrappersCount() {
             return trappersCount;
         }
-    }
-    
-    enum BusterState {
-        IDLE, CARRYING_GHOST, STUNNED, TRAPPING
-    }
-
-    enum Team
-
-    /**
-     * Represents the game state
-     */
-    static final class State implements Cloneable {
-
-        static final int MAX_NUMBER_OF_ROUNDS = 400;
-
-        // Permanent values
-        private final int bustersPerPlayer;
-        private final int ghostCount;
-        private final int myTeamId; // TODO: keep it an int or change it to enum?
-
-        private final int[][] lastSeen;
-        private final int[][] visitedPoints;
-        private final int[][] moving;
-        private final int[] inChase;
-        private final int[] lastStun;
-
-        // Turn state
-        private int round;
-        private int playerScore;
-        private Buster[] busters;
-        private Buster[] enemyBusters;
-        private Ghost[] ghosts;
-
-        State(int bustersPerPlayer, int ghostCount, int myTeamId) {
-            this.bustersPerPlayer = bustersPerPlayer;
-            this.ghostCount = ghostCount;
-            this.myTeamId = myTeamId;
-
-            this.lastSeen = new int[ghostCount][3];
-            this.visitedPoints = new int[bustersPerPlayer * MAX_NUMBER_OF_ROUNDS][2];
-            this.moving = new int[bustersPerPlayer][3];
-            this.inChase = new int[bustersPerPlayer];
-            this.lastStun = new int[bustersPerPlayer];
-
-            Arrays.fill(inChase, -1);
-            Arrays.fill(lastStun, -20);
-        }
-
-        void incrementRound() {
-            round++;
-        }
-
-        /**
-         * Performs an action (which will mutate the game state)
-         *
-         * @param action to perform
-         */
-        void perform(Action action) {
-            throw new UnsupportedOperationException("Not implemented");
-        }
 
         @Override
-        protected State clone() {
-            throw new UnsupportedOperationException("Not implemented");
+        public String toString() {
+            return super.id + " @ (" + super.x + ", " + super.y + ") | " +
+                    "stamina=" + stamina + " | " +
+                    "trappers=" + trappersCount;
         }
+    }
 
-        int getPlayerScore() {
-            return playerScore;
-        }
-
-        public Buster[] getBusters() {
-            return busters;
-        }
-
-        public void setBusters(Buster[] busters) {
-            this.busters = busters;
-        }
-
-        public Buster[] getEnemyBusters() {
-            return enemyBusters;
-        }
-
-        public void setEnemyBusters(Buster[] enemyBusters) {
-            this.enemyBusters = enemyBusters;
-        }
-
-        public Ghost[] getGhosts() {
-            return ghosts;
-        }
-
-        public void setGhosts(Ghost[] ghosts) {
-            this.ghosts = ghosts;
-        }
+    enum BusterState {
+        IDLE, CARRYING_GHOST, STUNNED, TRAPPING
     }
 
     /**
      * Represents an action that can be taken
      */
-    static final class Action {
+    interface Action {
+        String asString();
+    }
 
-        Action() {
-            // TODO: implement what action is
+    static class Move implements Action {
+        private final int x, y;
+        private final String message;
+
+        Move(int x, int y) {
+            this(x, y, null);
         }
 
-        String asString() {
-            return "";
+        Move(int x, int y, String message) {
+            this.x = x;
+            this.y = y;
+            this.message = message;
+        }
+
+        @Override
+        public String asString() {
+            String action = "MOVE " + x + " " + y;
+            if (message != null) {
+                return action.concat(" " + message);
+            }
+            return action;
+        }
+    }
+
+    static class Bust implements Action {
+        private final int ghostId;
+        private final String message;
+
+        Bust(int ghostId) {
+            this(ghostId, null);
+        }
+
+        Bust(int ghostId, String message) {
+            this.ghostId = ghostId;
+            this.message = message;
+        }
+
+        @Override
+        public String asString() {
+            String action = "BUST " + ghostId;
+            if (message != null) {
+                return action.concat(" " + message);
+            }
+            return action;
+        }
+    }
+
+    static class Release implements Action {
+        private final String message;
+
+        Release() {
+            this(null);
+        }
+
+        Release(String message) {
+            this.message = message;
+        }
+
+        @Override
+        public String asString() {
+            String action = "RELEASE";
+            if (message != null) {
+                return action.concat(" " + message);
+            }
+            return action;
+        }
+    }
+
+    static class Stun implements Action {
+        private final int enemyBusterId;
+        private final String message;
+
+        Stun(int enemyBusterId) {
+            this(enemyBusterId, null);
+        }
+
+        Stun(int enemyBusterId, String message) {
+            this.enemyBusterId = enemyBusterId;
+            this.message = message;
+        }
+
+        @Override
+        public String asString() {
+            String action = "STUN " + enemyBusterId;
+            if (message != null) {
+                return action.concat(" " + message);
+            }
+            return action;
         }
     }
 

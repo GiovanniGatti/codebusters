@@ -1,10 +1,8 @@
 package game;
 
-import java.util.concurrent.Callable;
-
 import game.Player.AI;
-import game.Player.Action;
-import game.Player.State;
+
+import java.util.concurrent.Callable;
 
 /**
  * Represents a single match between any two IAs
@@ -32,49 +30,50 @@ final class Match implements Callable<Match.MatchResult> {
         player.reset();
         opponent.reset();
 
-        State playerCurrentState = stateSupplier.playerState();
-        State opponentCurrentState = stateSupplier.opponentState();
-        int rounds = 0;
-
-        do {
-            Action playerAction = player.play(playerCurrentState.clone());
-            Action opponentAction = opponent.play(opponentCurrentState.clone());
-
-            stateSupplier.next(playerAction, opponentAction);
-
-            playerCurrentState = stateSupplier.playerState();
-            opponentCurrentState = stateSupplier.opponentState();
-
-            rounds++;
-        } while (isNotFinished(playerCurrentState, opponentCurrentState, rounds));
-
-        return new MatchResult(
-                playerCurrentState.getPlayerScore(),
-                opponentCurrentState.getPlayerScore(),
-                rounds,
-                getWinner(playerCurrentState, opponentCurrentState, rounds));
+//        State playerCurrentState = stateSupplier.playerState();
+//        State opponentCurrentState = stateSupplier.opponentState();
+//        int rounds = 0;
+//
+//        do {
+//            Action playerAction = player.play(playerCurrentState.clone());
+//            Action opponentAction = opponent.play(opponentCurrentState.clone());
+//
+//            stateSupplier.next(playerAction, opponentAction);
+//
+//            playerCurrentState = stateSupplier.playerState();
+//            opponentCurrentState = stateSupplier.opponentState();
+//
+//            rounds++;
+//        } while (isNotFinished(playerCurrentState, opponentCurrentState, rounds));
+//
+//        return new MatchResult(
+//                playerCurrentState.getPlayerScore(),
+//                opponentCurrentState.getPlayerScore(),
+//                rounds,
+//                getWinner(playerCurrentState, opponentCurrentState, rounds));
+        return null;
     }
 
     /**
-     * 
-     * @param playerState
-     * @param opponentState
+     * //     * @param playerState
+     * //     * @param opponentState
+     *
      * @param rounds total number of played rounds
      * @return
      */
-    static boolean isNotFinished(State playerState, State opponentState, int rounds) {
+    static boolean isNotFinished(/*State playerState, State opponentState, */int rounds) {
         // TODO: implement game ending conditions
         throw new UnsupportedOperationException("Not implemented");
     }
 
     /**
+     * //     * @param playerState
+     * //     * @param opponentState
      *
-     * @param playerState
-     * @param opponentState
      * @param rounds total number of played rounds
      * @return
      */
-    static Winner getWinner(State playerState, State opponentState, int rounds) {
+    static Winner getWinner(/*State playerState, State opponentState,*/ int rounds) {
         // TODO: extract winner from finished game match
         throw new UnsupportedOperationException("Not implemented");
     }

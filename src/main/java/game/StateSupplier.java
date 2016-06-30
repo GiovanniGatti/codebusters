@@ -1,7 +1,6 @@
 package game;
 
 import game.Player.Action;
-import game.Player.State;
 
 interface StateSupplier {
 
@@ -19,10 +18,10 @@ interface StateSupplier {
     /**
      * @return player view of the current match's state
      */
-    State playerState();
+//    State playerState();
 
     /**
      * @return opponent view of the current match's state
      */
-    State opponentState();
+//    State opponentState();
 }
