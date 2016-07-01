@@ -30,7 +30,7 @@ public class Cal {
             for (int j = 0; j < map[i].length; j++) {
                 map[i][j] = 0.6;
 
-                //lower triangular area
+                // lower triangular area
                 double y = A * i + B;
                 if ((y < j && myTeamId == 0) || (y > j && myTeamId == 1)) {
                     map[i][j] = 0.3;
@@ -43,70 +43,78 @@ public class Cal {
 
                 if (0 <= i && i <= (BASE_RANGE / MAP_RESOLUTION) - 1
                         && 0 <= j && j <= (BASE_RANGE / MAP_RESOLUTION) - 1) {
-                    //upper base
+                    // upper base
                     map[i][j] = 0.0;
                 } else if (map.length - (BASE_RANGE / MAP_RESOLUTION) <= i &&
                         map[0].length - (BASE_RANGE / MAP_RESOLUTION) <= j) {
-                    //lower base
+                    // lower base
                     map[i][j] = 0.0;
                 }
             }
         }
 
-        updateMap(map, 3456, 7845);
+        // point (3456, 7845)
+        updateMap(map, 1900, 15000);
+        updateMap(map, 2553, 12123);
 
-        for (int i = 0; i < map.length; i++) {
-            for (int j = 0; j < map[i].length; j++) {
-                System.out.print("|" + map[i][j]);
-                if (j == map[i].length - 1) {
+        for (int i = 0; i < map[0].length; i++) {
+            for (int j = 0; j < map.length; j++) {
+                System.out.print("|" + map[j][i]);
+                if (j == map.length - 1) {
                     System.out.println("");
                 }
             }
         }
     }
 
+    private static double evaluate(double[][] map, int x, int y, int[][] points){
+
+        return 0.0;
+    }
+
     private static void updateMap(double[][] map, int x, int y) {
-        int upperX = x - FOW_RANGE;
-        int upperY = y - FOW_RANGE;
+        int upperX = (x - FOW_RANGE) / MAP_RESOLUTION;
+        int upperY = (y - FOW_RANGE) / MAP_RESOLUTION;
 
-        int bottomX = x + FOW_RANGE;
-        int bottomY = y + FOW_RANGE;
+        int bottomX = (x + FOW_RANGE) / MAP_RESOLUTION;
+        int bottomY = (y + FOW_RANGE) / MAP_RESOLUTION;
 
-        System.out.println("i stars at " + (upperX - upperX % MAP_RESOLUTION) / MAP_RESOLUTION);
-        System.out.println("i ends at " + (bottomX + MAP_RESOLUTION - bottomX % 200) / MAP_RESOLUTION);
-        System.out.println("j stars at " + (upperY - upperY % MAP_RESOLUTION) / MAP_RESOLUTION);
-        System.out.println("j ends at " + (bottomY + MAP_RESOLUTION - bottomY % 200) / MAP_RESOLUTION);
+        // map bord constraints
+        if (upperX < 0) {
+            upperX = 0;
+        }
 
-        for (int i = (upperX - upperX % MAP_RESOLUTION) / MAP_RESOLUTION; i < (bottomX + MAP_RESOLUTION - bottomX % 200) / MAP_RESOLUTION && i < map.length; i++) {
+        if (upperY < 0) {
+            upperY = 0;
+        }
+
+        for (int i = upperX; i < bottomX && i < map[0].length; i++) {
             int blockX = i * MAP_RESOLUTION;
-            for (int j = (upperY - upperY % MAP_RESOLUTION) / MAP_RESOLUTION; j < (bottomY + MAP_RESOLUTION - bottomY % 200) / MAP_RESOLUTION && j < map[i].length; j++) {
+            for (int j = upperY; j < bottomY && j < map.length; j++) {
+
+                if (map[j][i] == 0.0) {
+                    continue;
+                }
+
                 int blockY = j * MAP_RESOLUTION;
-                System.out.println(i + ", " + j);
-                System.out.println(blockX + ", " + blockY);
-                if (blockX < x && blockY < y) {
-                    //upper left corner
-                    if ((blockX - x) * (blockX - x) +
-                            (blockY - y) * (blockY - y) <= SQUARE_FOW_RANGE) {
-                        map[i][j] = 0.0;
-                    }
-                } else if (blockX >= x && j < blockY) {
-                    //upper right corner
-                    if (((blockX + MAP_RESOLUTION) - x) * ((blockX + MAP_RESOLUTION) - x) +
-                            (blockY - y) * (blockY - y) <= SQUARE_FOW_RANGE) {
-                        map[i][j] = 0.0;
-                    }
+
+                int dx = blockX - x;
+                int dy = blockY - y;
+
+                if (blockX >= x && j < blockY) {
+                    // upper right corner
+                    dx = (dx + MAP_RESOLUTION);
                 } else if (blockX >= x && j >= blockY) {
-                    //lower right corner
-                    if (((blockX + MAP_RESOLUTION) - x) * ((blockX + MAP_RESOLUTION) - x) +
-                            ((blockY + MAP_RESOLUTION) - y) * ((blockY + MAP_RESOLUTION) - y) <= SQUARE_FOW_RANGE) {
-                        map[i][j] = 0.0;
-                    }
-                } else {
-                    //lower left corner
-                    if ((blockX - x) * (blockX - x) +
-                            (blockY + MAP_RESOLUTION - y) * (blockY + MAP_RESOLUTION - y) <= SQUARE_FOW_RANGE) {
-                        map[i][j] = 0.0;
-                    }
+                    // lower right corner
+                    dx = (dx + MAP_RESOLUTION);
+                    dy = (dy + MAP_RESOLUTION);
+                } else if (blockX <= x && j >= blockY) {
+                    // lower left corner
+                    dy = (dy + MAP_RESOLUTION);
+                }
+
+                if (dx * dx + dy * dy <= SQUARE_FOW_RANGE) {
+                    map[j][i] = 0.0;
                 }
             }
         }
