@@ -1,5 +1,7 @@
 package game;
 
+import java.util.Random;
+
 /**
  * Created by giovanni on 01/07/16.
  */
@@ -21,6 +23,7 @@ public class Cal {
 
     static final int FOW_RANGE = 2200;
     static final int SQUARE_FOW_RANGE = FOW_RANGE * FOW_RANGE;
+    private static double[][] map;
 
     public static void main(String args[]) throws Exception {
         int myTeamId = 0;
@@ -183,5 +186,38 @@ public class Cal {
                 }
             }
         }
+    }
+
+    private static int[][] planner(double[][] map, int x1, int y1, int x2, int y2) {
+        int px1 = x1;
+        int py1 = y1;
+        int px2 = x2;
+        int py2 = y2;
+
+        Random random = new Random();
+
+        //break it up in multiple genomes of 6 movements
+        int[][] population = new int[50][2];
+        for (int i = 0; i < population.length; i++) {
+            population[i][0] = random.nextInt(16000);
+            population[i][1] = random.nextInt(9000);
+        }
+
+        double delta = 0.0;
+
+        do {
+
+
+        } while (delta < 60.0);
+
+        return null;
+    }
+
+    private static int[] move(int x, int y, int targetX, int targetY){
+        int[] point = new int[2];
+
+        //sen, cos e semelhança de triângulos?
+
+        return point;
     }
 }
