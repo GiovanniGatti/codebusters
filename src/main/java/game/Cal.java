@@ -23,7 +23,7 @@ public class Cal {
     static final int SQUARE_FOW_RANGE = FOW_RANGE * FOW_RANGE;
 
     public static void main(String args[]) throws Exception {
-        int myTeamId = 1;
+        int myTeamId = 0;
 
         double[][] map = new double[MAP_X_SIZE / MAP_RESOLUTION][MAP_Y_SIZE / MAP_RESOLUTION];
         for (int i = 0; i < map.length; i++) {
@@ -54,8 +54,17 @@ public class Cal {
         }
 
         // point (3456, 7845)
-        updateMap(map, 1900, 15000);
-        updateMap(map, 2553, 12123);
+        int[][] points = new int[2][2];
+        points[0][0] = 1300;
+        points[0][1] = 2000;
+        points[1][0] = 4500;
+        points[1][1] = 4000;
+
+        double score = evaluate(map, points);
+        System.out.println("score " + score);
+
+        updateMap(map, points[0][0], points[0][1]);
+        updateMap(map, points[1][0], points[1][1]);
 
         for (int i = 0; i < map[0].length; i++) {
             for (int j = 0; j < map.length; j++) {
@@ -67,9 +76,65 @@ public class Cal {
         }
     }
 
-    private static double evaluate(double[][] map, int x, int y, int[][] points){
+    // n points for each one of the busters organized in seq
+    private static double evaluate(double[][] map, int[][] points) {
+        boolean[][] mask = new boolean[map.length][map[0].length];
+        double score = 0.0;
 
-        return 0.0;
+        for (int[] point : points) {
+
+            int x = point[0];
+            int y = point[1];
+
+            int upperX = (x - FOW_RANGE) / MAP_RESOLUTION;
+            int upperY = (y - FOW_RANGE) / MAP_RESOLUTION;
+
+            int bottomX = (x + FOW_RANGE) / MAP_RESOLUTION;
+            int bottomY = (y + FOW_RANGE) / MAP_RESOLUTION;
+
+            // map bord constraints
+            if (upperX < 0) {
+                upperX = 0;
+            }
+
+            if (upperY < 0) {
+                upperY = 0;
+            }
+
+            for (int i = upperX; i < bottomX && i < map[0].length; i++) {
+                int blockX = i * MAP_RESOLUTION;
+                for (int j = upperY; j < bottomY && j < map.length; j++) {
+
+                    if (map[j][i] == 0.0 || mask[j][i]) {
+                        continue;
+                    }
+
+                    int blockY = j * MAP_RESOLUTION;
+
+                    int dx = blockX - x;
+                    int dy = blockY - y;
+
+                    if (blockX >= x && j < blockY) {
+                        // upper right corner
+                        dx = (dx + MAP_RESOLUTION);
+                    } else if (blockX >= x && j >= blockY) {
+                        // lower right corner
+                        dx = (dx + MAP_RESOLUTION);
+                        dy = (dy + MAP_RESOLUTION);
+                    } else if (blockX <= x && j >= blockY) {
+                        // lower left corner
+                        dy = (dy + MAP_RESOLUTION);
+                    }
+
+                    if (dx * dx + dy * dy <= SQUARE_FOW_RANGE) {
+                        mask[j][i] = true;
+                        score += map[j][i];
+                    }
+                }
+            }
+        }
+
+        return score;
     }
 
     private static void updateMap(double[][] map, int x, int y) {
