@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Scanner;
 import java.util.function.IntSupplier;
 
@@ -26,6 +27,19 @@ final class Player {
 
     static class RoleBasedAI extends AI {
 
+        static final int MAP_X_SIZE = 16_000;
+        static final int MAP_Y_SIZE = 9_000;
+        static final int MAP_RESOLUTION = 200;
+
+        static final double BASE_RANGE = 1_600.0;
+
+        // y = a * x + b (map diagonal)
+        static final double B = ((double) MAP_Y_SIZE / MAP_RESOLUTION);
+        static final double A = -B / (((double) MAP_X_SIZE) / MAP_RESOLUTION);
+
+        static final int MAP_X_CENTRAL_POINT = (MAP_X_SIZE / MAP_RESOLUTION) / 2;
+        static final int MAP_Y_CENTRAL_POINT = (MAP_Y_SIZE / MAP_RESOLUTION) / 2;
+
         static final int MAX_NUMBER_OF_ROUNDS = 400;
 
         private final int bustersPerPlayer;
@@ -40,6 +54,8 @@ final class Player {
 
         private int round = 0;
 
+        private double[][] map;
+
         // round variables
         private List<Buster> busters;
         private List<Buster> enemyBusters;
@@ -53,6 +69,8 @@ final class Player {
             this.myTeamId = readInput();
 
             this.exploredPoints = new ArrayList<>(bustersPerPlayer * MAX_NUMBER_OF_ROUNDS);
+
+            this.map = initializeMap(myTeamId);
 
             this.targetPoints = new TargetPoint[bustersPerPlayer];
             for (int i = 0; i < targetPoints.length; i++) {
@@ -82,10 +100,8 @@ final class Player {
         /*
          * How to test it?
          */
-        private static Action explore(
-                TargetPoint[] targetPoints,
-                List<ExploredPoint> exploredPoints,
-                int knownGhosts) {
+        private PairBusterAction[] explore(Buster... busters) {
+
 
             return null;
         }
@@ -106,6 +122,7 @@ final class Player {
 
                 if (entityType == myTeamId) {
                     busters.add(new Player.Buster(entityId, x, y, state, value));
+
                     exploredPoints.add(new ExploredPoint(x, y));
                 } else if (entityType == -1) {
                     ghosts.add(new Player.Ghost(entityId, x, y, state, value));
@@ -120,6 +137,41 @@ final class Player {
                     enemyBusters.add(new Player.Buster(entityId, x, y, state, value));
                 }
             }
+        }
+
+        private static double[][] initializeMap(int myTeamId) {
+            double[][] map = new double[MAP_X_SIZE / MAP_RESOLUTION][MAP_Y_SIZE / MAP_RESOLUTION];
+            for (int i = 0; i < map.length; i++) {
+                for (int j = 0; j < map[i].length; j++) {
+                    map[i][j] = 0.6;
+
+                    //lower triangular area
+                    double y = A * i + B;
+                    if ((y < j && myTeamId == 0) || (y > j && myTeamId == 1)) {
+                        map[i][j] = 0.3;
+                    }
+
+                    if (((i > MAP_X_CENTRAL_POINT && j > MAP_Y_CENTRAL_POINT) && myTeamId == 0)
+                            || ((i < MAP_X_CENTRAL_POINT && j < MAP_Y_CENTRAL_POINT) && myTeamId == 1)) {
+                        map[i][j] = 0.1;
+                    }
+
+                    if (0 <= i && i <= (BASE_RANGE / MAP_RESOLUTION) - 1
+                            && 0 <= j && j <= (BASE_RANGE / MAP_RESOLUTION) - 1) {
+                        //upper base
+                        map[i][j] = 0.0;
+                    } else if (map.length - (BASE_RANGE / MAP_RESOLUTION) <= i &&
+                            map[0].length - (BASE_RANGE / MAP_RESOLUTION) <= j) {
+                        //lower base
+                        map[i][j] = 0.0;
+                    }
+                }
+            }
+            return map;
+        }
+
+        private static void updateMap(double[][] map, int x, int y) {
+
         }
 
         private static class TargetPoint {
@@ -169,6 +221,30 @@ final class Player {
             @Override
             public String toString() {
                 return "(" + x + ", " + y + ")";
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                ExploredPoint that = (ExploredPoint) o;
+                return x == that.x &&
+                        y == that.y;
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(x, y);
+            }
+        }
+
+        private static class PairBusterAction {
+            final Buster b;
+            final Action a;
+
+            PairBusterAction(Buster b, Action a) {
+                this.b = b;
+                this.a = a;
             }
         }
     }
@@ -259,20 +335,20 @@ final class Player {
             super(id, x, y);
             this.value = value;
             switch (state) {
-            case 0:
-                this.state = BusterState.IDLE;
-                break;
-            case 1:
-                this.state = BusterState.CARRYING_GHOST;
-                break;
-            case 2:
-                this.state = BusterState.STUNNED;
-                break;
-            case 3:
-                this.state = BusterState.TRAPPING;
-                break;
-            default:
-                throw new IllegalStateException("Unknown buster state " + state);
+                case 0:
+                    this.state = BusterState.IDLE;
+                    break;
+                case 1:
+                    this.state = BusterState.CARRYING_GHOST;
+                    break;
+                case 2:
+                    this.state = BusterState.STUNNED;
+                    break;
+                case 3:
+                    this.state = BusterState.TRAPPING;
+                    break;
+                default:
+                    throw new IllegalStateException("Unknown buster state " + state);
             }
         }
 
