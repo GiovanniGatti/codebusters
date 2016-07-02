@@ -52,8 +52,6 @@ final class Player {
         private final int bustersPerPlayer;
         private final int ghostCount;
 
-        private final List<ExploredPoint> exploredPoints;
-
         private final int myTeamId;
         private final TargetPoint[] targetPoints;
         private final GhostStatus[] ghostStatuses;
@@ -61,7 +59,7 @@ final class Player {
 
         private int round = 0;
 
-        private double[][] map;
+        private final Explorer explorer;
 
         // round variables
         private List<Buster> busters;
@@ -75,10 +73,6 @@ final class Player {
             this.ghostCount = readInput();
             this.myTeamId = readInput();
 
-            this.exploredPoints = new ArrayList<>(bustersPerPlayer * MAX_NUMBER_OF_ROUNDS);
-
-            this.map = generateMap(myTeamId);
-
             this.targetPoints = new TargetPoint[bustersPerPlayer];
             for (int i = 0; i < targetPoints.length; i++) {
                 this.targetPoints[i] = new TargetPoint(-1, -1, BusterRole.NONE);
@@ -89,6 +83,8 @@ final class Player {
             for (int i = 0; i < ghostStatuses.length; i++) {
                 this.ghostStatuses[i] = new GhostStatus(0, 0, GhostPosState.UNKNOWN);
             }
+
+            this.explorer = new Explorer(bustersPerPlayer);
         }
 
         @Override
@@ -100,9 +96,7 @@ final class Player {
                 System.err.println(ghostStatuse);
             }
 
-            PairBusterAction[] pairBusterActions =
-                    new Explorer(map, busters.toArray(new Buster[busters.size()]))
-                            .find(10 * busters.size(), 16, 8);
+            PairBusterAction[] pairBusterActions = explorer.find(round, busters.toArray(new Buster[busters.size()]));
 
             List<PairBusterAction> sorted = Arrays.asList(pairBusterActions);
             Collections.sort(sorted);
@@ -138,9 +132,7 @@ final class Player {
 
                 if (entityType == myTeamId) {
                     busters.add(new Player.Buster(entityId, x, y, state, value));
-                    updateMap(map, x, y);
-
-                    exploredPoints.add(new ExploredPoint(x, y));
+                    explorer.update(new ExploredPoint(x, y));
                 } else if (entityType == -1) {
                     ghosts.add(new Player.Ghost(entityId, x, y, state, value));
 
@@ -152,111 +144,6 @@ final class Player {
                     }
                 } else {
                     enemyBusters.add(new Player.Buster(entityId, x, y, state, value));
-                }
-            }
-        }
-
-        private static double[][] generateMap(int myTeamId) {
-            double[][] map = new double[MAP_X_SIZE / MAP_RESOLUTION][MAP_Y_SIZE / MAP_RESOLUTION];
-            for (int i = 0; i < map.length; i++) {
-                for (int j = 0; j < map[i].length; j++) {
-                    map[i][j] = 0.6;
-
-                    // lower triangular area
-                    double y = A * i + B;
-                    if ((y < j && myTeamId == 0) || (y > j && myTeamId == 1)) {
-                        map[i][j] = 0.3;
-                    }
-
-                    if (((i > MAP_X_CENTRAL_POINT && j > MAP_Y_CENTRAL_POINT) && myTeamId == 0)
-                            || ((i < MAP_X_CENTRAL_POINT && j < MAP_Y_CENTRAL_POINT) && myTeamId == 1)) {
-                        map[i][j] = 0.1;
-                    }
-
-                    if (0 <= i && i <= (BASE_RANGE / MAP_RESOLUTION) - 1
-                            && 0 <= j && j <= (BASE_RANGE / MAP_RESOLUTION) - 1) {
-                        // upper base
-                        map[i][j] = 0.0;
-                    } else if (map.length - (BASE_RANGE / MAP_RESOLUTION) <= i &&
-                            map[0].length - (BASE_RANGE / MAP_RESOLUTION) <= j) {
-                        // lower base
-                        map[i][j] = 0.0;
-                    }
-
-                    // closest base corner
-                    if (i <= 15 && j >= 30) {
-                        if (myTeamId == 0) {
-                            map[i][j] = 1.0;
-                        } else {
-                            map[i][j] = 0.8;
-                        }
-                    }
-
-                    if (i >= 65 && j <= 15) {
-                        if (myTeamId == 0) {
-                            map[i][j] = 0.8;
-                        } else {
-                            map[i][j] = 1.0;
-                        }
-                    }
-                }
-            }
-
-            return map;
-        }
-
-        private static void updateMap(double[][] map, int x, int y) {
-            int upperX = (x - FOW_RANGE) / MAP_RESOLUTION;
-            int upperY = (y - FOW_RANGE) / MAP_RESOLUTION;
-
-            int bottomX = (x + FOW_RANGE) / MAP_RESOLUTION;
-            int bottomY = (y + FOW_RANGE) / MAP_RESOLUTION;
-
-            // map bord constraints
-            if (upperX < 0) {
-                upperX = 0;
-            }
-
-            if (upperY < 0) {
-                upperY = 0;
-            }
-
-            if (bottomX > map.length) {
-                bottomX = map.length;
-            }
-
-            if (bottomY > map[0].length) {
-                bottomY = map[0].length;
-            }
-
-            for (int j = upperX; j < bottomX; j++) {
-                int blockX = j * MAP_RESOLUTION;
-                for (int i = upperY; i < bottomY; i++) {
-
-                    if (map[j][i] == 0.0) {
-                        continue;
-                    }
-
-                    int blockY = i * MAP_RESOLUTION;
-
-                    int dx = blockX - x;
-                    int dy = blockY - y;
-
-                    if (blockX >= x && j < blockY) {
-                        // upper right corner
-                        dx = (dx + MAP_RESOLUTION);
-                    } else if (blockX >= x && j >= blockY) {
-                        // lower right corner
-                        dx = (dx + MAP_RESOLUTION);
-                        dy = (dy + MAP_RESOLUTION);
-                    } else if (blockX <= x && j >= blockY) {
-                        // lower left corner
-                        dy = (dy + MAP_RESOLUTION);
-                    }
-
-                    if (dx * dx + dy * dy <= SQUARE_FOW_RANGE) {
-                        map[j][i] = 0.0;
-                    }
                 }
             }
         }
@@ -345,272 +232,87 @@ final class Player {
         }
 
         static class Explorer {
-            private double[][] map;
-            private final Buster[] busters;
             private final Random random;
+            private final ToExplorePoint[] toExplorePoints;
+            private final List<ExploredPoint> exploredPoints;
 
-            Explorer(double[][] map, Buster... busters) {
-                this.map = map;
-                this.busters = busters;
+            Explorer(int numberOfBusters) {
                 this.random = new Random();
+                this.exploredPoints = new ArrayList<>(MAX_NUMBER_OF_ROUNDS * numberOfBusters);
+                this.toExplorePoints = new ToExplorePoint[numberOfBusters];
             }
 
-            PairBusterAction[] find(int movements, int popSize, int generations) {
-
-                // Create the pool
-                List<Chromosome> pool = new ArrayList<>(popSize);
-                List<Chromosome> newPool = new ArrayList<>(popSize);
-
-                // Generate unique chromosomes in the pool
-                for (int i = 0; i < popSize; i++) {
-                    Chromosome chromosome = new Chromosome(movements, busters);
-                    chromosome.score(map);
-                    pool.add(chromosome);
-                }
-
-                // Loop until solution is found
-                for (int generation = 0; generation < generations; generation++) {
-                    // Clear the new pool
-                    newPool.clear();
-
-                    // Loop until the pool has been processed
-                    for (int x = pool.size() - 1; x >= 0; x -= 2) {
-                        // Select two members
-                        Chromosome n1 = selectMember(pool);
-                        Chromosome n2 = selectMember(pool);
-
-                        // Cross over and mutate
-                        n1.crossOver(n2);
-                        n1.mutate();
-                        n2.mutate();
-
-                        // score new nodes
-                        n1.score(map);
-                        n2.score(map);
-
-                        // Add to the new pool
-                        newPool.add(n1);
-                        newPool.add(n2);
-                    }
-
-                    // Add the newPool back to the old pool
-                    pool.addAll(newPool);
-                }
-
-                double maxScore = Double.NEGATIVE_INFINITY;
-                Chromosome best = null;
-                for (Chromosome chromosome : newPool) {
-                    if (chromosome.score > maxScore) {
-                        maxScore = chromosome.score;
-                        best = chromosome;
-                    }
-                }
-
-                PairBusterAction[] actions = new PairBusterAction[busters.length];
-                for (int i = 0; i < actions.length; i++) {
-                    actions[i] = new PairBusterAction(busters[i],
-                            new Move(best.genes[i][0], best.genes[i][1], "Exploring"));
-                }
-
-                System.err.println("best score: " + maxScore);
-
-                return actions;
+            void update(ExploredPoint point) {
+                exploredPoints.add(point);
             }
 
-            private Chromosome selectMember(List<Chromosome> l) {
+            PairBusterAction[] find(int round, Buster... busters) {
 
-                // Get the total fitness
-                double tot = 0.0;
-                for (int x = l.size() - 1; x >= 0; x--) {
-                    double score = (l.get(x)).score;
-                    tot += score;
-                }
-                double slice = tot * random.nextDouble();
+                PairBusterAction[] pair = new PairBusterAction[busters.length];
 
-                // Loop to find the node
-                double ttot = 0.0;
-                for (int x = l.size() - 1; x >= 0; x--) {
-                    Chromosome node = l.get(x);
-                    ttot += node.score;
-                    if (ttot >= slice) {
-                        l.remove(x);
-                        return node;
+                for (int i = 0; i < busters.length; i++) {
+                    Buster buster = busters[i];
+                    ToExplorePoint toExplorePoint = toExplorePoints[buster.getId()];
+                    if (toExplorePoint == null || !toExplorePoint.going ||
+                            buster.squareDistTo(toExplorePoint.x, toExplorePoint.y) < SQUARE_FOW_RANGE) {
+                        toExplorePoint = generate(round, buster);
+                        toExplorePoints[buster.getId()] = toExplorePoint;
                     }
+
+                    pair[i] = new PairBusterAction(buster, new Move(toExplorePoint.x, toExplorePoint.y, "Exploring"));
                 }
 
-                return l.remove(l.size() - 1);
+                return pair;
             }
 
-            private static class Chromosome {
-                private final double crossoverRate;
-                private final double mutationRate;
-                private final Buster[] busters;
-                private final Random random;
+            private ToExplorePoint generate(int round, Buster buster) {
+                int x, y;
 
-                private int[][] genes;
-                private double score;
+                do {
+                    x = random.nextInt(16000);
+                    y = random.nextInt(9000);
+                } while (!isExplored(exploredPoints, buster.getX(), buster.getY(), x, y));
 
-                Chromosome(int numberOfMovements, double crossoverRate, double mutationRate, Buster... busters) {
-                    this.crossoverRate = crossoverRate;
-                    this.mutationRate = mutationRate;
-                    this.busters = busters;
-                    random = new Random();
-                    genes = new int[numberOfMovements * busters.length][2];
-                    for (int[] gene : genes) {
-                        double nextDouble = random.nextDouble();
-                        //TODO: take in consideration base pos
-                        if (nextDouble < .15) {
-                            gene[0] = random.nextInt(5500);
-                            gene[1] = random.nextInt(3500) + 5500;
-                        } else if (nextDouble < .25) {
-                            gene[0] = 10500 + random.nextInt(5500);
-                            gene[1] = random.nextInt(5500);
-                        } else {
-                            gene[0] = random.nextInt(16000);
-                            gene[1] = random.nextInt(9000);
+                return new ToExplorePoint(x, y);
+            }
+
+            private static boolean isExplored(List<ExploredPoint> exploredPoints, int x, int y, int tx, int ty) {
+                for (ExploredPoint p1 : exploredPoints) {
+                    for (ExploredPoint p2 : exploredPoints) {
+                        if (crosses(p1, p2, x, y, tx, ty)) {
+                            return true;
                         }
                     }
 
-                    score = 0.0;
-                }
-
-                Chromosome(int numberOfMovements, Buster... busters) {
-                    this(numberOfMovements, .7, .001, busters);
-                }
-
-                void score(double[][] map) {
-                    boolean[][] mask = new boolean[map.length][map[0].length];
-                    double score = 0.0;
-
-                    int[][] bustersPositions = new int[busters.length][2];
-                    for (int i = 0; i < busters.length; i++) {
-                        bustersPositions[i][0] = busters[i].getX();
-                        bustersPositions[i][1] = busters[i].getY();
-                    }
-
-                    for (int g = 0; g < genes.length; g++) {
-
-                        int busterId = g % busters.length;
-                        int xi = bustersPositions[busterId][0];
-                        int yi = bustersPositions[busterId][1];
-
-                        int xt = genes[g][0];
-                        int yt = genes[g][1];
-
-                        int[] move = move(xi, yi, xt, yt);
-                        int x = move[0];
-                        int y = move[1];
-                        bustersPositions[busterId][0] = x;
-                        bustersPositions[busterId][1] = y;
-
-                        int upperX = (x - FOW_RANGE) / MAP_RESOLUTION;
-                        int upperY = (y - FOW_RANGE) / MAP_RESOLUTION;
-
-                        int bottomX = (x + FOW_RANGE) / MAP_RESOLUTION;
-                        int bottomY = (y + FOW_RANGE) / MAP_RESOLUTION;
-
-                        // map bord constraints
-                        if (upperX < 0) {
-                            upperX = 0;
-                        }
-
-                        if (upperY < 0) {
-                            upperY = 0;
-                        }
-
-                        if (bottomX > map.length) {
-                            bottomX = map.length;
-                        }
-
-                        if (bottomY > map[0].length) {
-                            bottomY = map[0].length;
-                        }
-
-                        for (int j = upperX; j < bottomX; j++) {
-                            int blockX = j * MAP_RESOLUTION;
-                            for (int i = upperY; i < bottomY; i++) {
-
-                                if (map[j][i] == 0.0 || mask[j][i]) {
-                                    continue;
-                                }
-
-                                int blockY = i * MAP_RESOLUTION;
-
-                                int dx = blockX - x;
-                                int dy = blockY - y;
-
-                                if (blockX >= x && j < blockY) {
-                                    // upper right corner
-                                    dx = (dx + MAP_RESOLUTION);
-                                } else if (blockX >= x && j >= blockY) {
-                                    // lower right corner
-                                    dx = (dx + MAP_RESOLUTION);
-                                    dy = (dy + MAP_RESOLUTION);
-                                } else if (blockX <= x && j >= blockY) {
-                                    // lower left corner
-                                    dy = (dy + MAP_RESOLUTION);
-                                }
-
-                                if (dx * dx + dy * dy <= SQUARE_FOW_RANGE) {
-                                    mask[j][i] = true;
-                                    score += map[j][i];
-                                }
-                            }
-                        }
-                    }
-
-                    this.score = score;
-                }
-
-                static int[] move(int x, int y, int targetX, int targetY) {
-                    int[] point = new int[2];
-
-                    double dist = Math.hypot(targetX - x, targetY - y);
-
-                    if (dist < MOVEMENT_RANGE) {
-                        point[0] = targetX;
-                        point[1] = targetY;
-                        return point;
-                    }
-
-                    double cosa = (targetX - x) / dist;
-                    double sina = (targetY - y) / dist;
-
-                    point[0] = (int) (MOVEMENT_RANGE * cosa) + x;
-                    point[1] = (int) (MOVEMENT_RANGE * sina) + y;
-
-                    return point;
-                }
-
-                void crossOver(Chromosome another) {
-                    if (random.nextDouble() < crossoverRate) {
-                        int randomGene = random.nextInt(genes.length);
-
-                        int[][] child1 = new int[genes.length][];
-                        int[][] child2 = new int[genes.length][];
-
-                        for (int j = 0; j < randomGene; j++) {
-                            child1[j] = genes[j];
-                            child2[j] = another.genes[j];
-                        }
-
-                        for (int j = randomGene; j < genes.length; j++) {
-                            child1[j] = another.genes[j];
-                            child2[j] = genes[j];
-                        }
-
-                        this.genes = child1;
-                        another.genes = child2;
+                    if ((p1.x - x) * (p1.x - x) + (p1.y - y) * (p1.y - y) < SQUARE_FOW_RANGE) {
+                        return true;
                     }
                 }
 
-                void mutate() {
-                    for (int[] gene : genes) {
-                        if (random.nextDouble() <= mutationRate) {
-                            gene[0] = random.nextInt(16000);
-                            gene[1] = random.nextInt(9000);
-                        }
-                    }
+                return false;
+            }
+
+            /**
+             * Return true if segment AB crosses segment CD
+             * Source: http://jsfiddle.net/ytr9314a/4/
+             */
+            private static boolean crosses(ExploredPoint a, ExploredPoint b, int cx, int cy, int dx, int dy) {
+                boolean aSide = (dx - cx) * (a.y - cy) - (dy - cy) * (a.x - cx) > 0;
+                boolean bSide = (dx - cx) * (b.y - cy) - (dy - cy) * (b.x - cx) > 0;
+                boolean cSide = (b.x - a.x) * (cy - a.y) - (b.y - a.y) * (cx - a.x) > 0;
+                boolean dSide = (b.x - a.x) * (dy - a.y) - (b.y - a.y) * (dx - a.x) > 0;
+                return aSide != bSide && cSide != dSide;
+            }
+
+            private static class ToExplorePoint {
+                int x;
+                int y;
+                boolean going;
+
+                ToExplorePoint(int x, int y) {
+                    this.x = x;
+                    this.y = y;
+                    this.going = true;
                 }
             }
         }
@@ -691,6 +393,19 @@ final class Player {
 
         double distTo(int x, int y) {
             return Math.sqrt(squareDistTo(x, y));
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Entity entity = (Entity) o;
+            return getId() == entity.getId();
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getId());
         }
     }
 
