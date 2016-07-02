@@ -1,6 +1,7 @@
 package game;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -93,23 +94,26 @@ final class Player {
         @Override
         Action[] play() {
             // TODO: implement
+            PairBusterAction[] pairBusterActions =
+                    new Explorer(map, busters.toArray(new Buster[busters.size()]))
+                            .find(5 * busters.size(), 16, 8);
+
+            List<PairBusterAction> sorted = Arrays.asList(pairBusterActions);
+            Collections.sort(sorted);
+
+            Action[] actions = new Action[sorted.size()];
+
+            for (int i = 0; i < sorted.size(); i++) {
+                actions[i] = sorted.get(i).a;
+            }
 
             round++;
-            return new Action[0];
+            return actions;
         }
 
         @Override
         void reset() {
 
-        }
-
-        /*
-         * How to test it?
-         */
-        private PairBusterAction[] explore(Buster... busters) {
-
-
-            return null;
         }
 
         private void loadInputState() {
@@ -314,13 +318,22 @@ final class Player {
             }
         }
 
-        private static class PairBusterAction {
+        private static class PairBusterAction implements Comparable<PairBusterAction> {
             final Buster b;
             final Action a;
 
             PairBusterAction(Buster b, Action a) {
                 this.b = b;
                 this.a = a;
+            }
+
+            Buster getBuster() {
+                return b;
+            }
+
+            @Override
+            public int compareTo(PairBusterAction o) {
+                return b.getId() - o.getBuster().getId();
             }
         }
 
@@ -335,7 +348,7 @@ final class Player {
                 this.random = new Random();
             }
 
-            Chromosome find(int movements, int popSize, int generations) {
+            PairBusterAction[] find(int movements, int popSize, int generations) {
 
                 // Create the pool
                 List<Chromosome> pool = new ArrayList<>(popSize);
@@ -375,13 +388,6 @@ final class Player {
 
                     // Add the newPool back to the old pool
                     pool.addAll(newPool);
-
-//            double tot = 0.0;
-//            for (int x = newPool.size() - 1; x >= 0; x--) {
-//                double score = (newPool.get(x)).score;
-//                tot += score;
-//            }
-//            System.out.println("generation " + generation + ": " + tot);
                 }
 
                 double maxScore = Double.NEGATIVE_INFINITY;
@@ -393,7 +399,13 @@ final class Player {
                     }
                 }
 
-                return best;
+                PairBusterAction[] actions = new PairBusterAction[busters.length];
+                for (int i = 0; i < actions.length; i++) {
+                    actions[i] = new PairBusterAction(busters[i],
+                            new Move(best.genes[i][0], best.genes[i][1], "Exploring"));
+                }
+
+                return actions;
             }
 
             private Chromosome selectMember(List<Chromosome> l) {
