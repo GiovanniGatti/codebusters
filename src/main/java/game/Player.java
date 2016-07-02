@@ -15,7 +15,7 @@ final class Player {
     public static void main(String args[]) {
         Scanner in = new Scanner(System.in);
 
-        AI player = new StateMachineAI(in::nextInt);
+        AI player = new RoleBasedAI(in::nextInt);
 
         // game loop
         while (true) {
@@ -94,9 +94,15 @@ final class Player {
         @Override
         Action[] play() {
             // TODO: implement
+            loadInputState();
+
+            for (GhostStatus ghostStatuse : ghostStatuses) {
+                System.err.println(ghostStatuse);
+            }
+
             PairBusterAction[] pairBusterActions =
                     new Explorer(map, busters.toArray(new Buster[busters.size()]))
-                            .find(5 * busters.size(), 16, 8);
+                            .find(10 * busters.size(), 16, 8);
 
             List<PairBusterAction> sorted = Arrays.asList(pairBusterActions);
             Collections.sort(sorted);
@@ -132,6 +138,7 @@ final class Player {
 
                 if (entityType == myTeamId) {
                     busters.add(new Player.Buster(entityId, x, y, state, value));
+                    updateMap(map, x, y);
 
                     exploredPoints.add(new ExploredPoint(x, y));
                 } else if (entityType == -1) {
