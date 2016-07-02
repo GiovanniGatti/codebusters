@@ -206,7 +206,7 @@ public class Cal {
         return score;
     }
 
-    private static void updateMap(double[][] map, int x, int y) {
+    static void updateMap(double[][] map, int x, int y) {
         int upperX = (x - FOW_RANGE) / MAP_RESOLUTION;
         int upperY = (y - FOW_RANGE) / MAP_RESOLUTION;
 
