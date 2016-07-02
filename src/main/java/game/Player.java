@@ -3,11 +3,15 @@ package game;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Scanner;
+import java.util.function.Function;
 import java.util.function.IntSupplier;
 import java.util.stream.Collectors;
 
@@ -237,6 +241,19 @@ final class Player {
             public String toString() {
                 return "(" + x + ", " + y + ") | " + state.name();
             }
+
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                GhostStatus status = (GhostStatus) o;
+                return id == status.id;
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(id);
+            }
         }
 
         enum GhostPosState {
@@ -404,31 +421,86 @@ final class Player {
             PairBusterAction[] find(Buster... busters) {
                 PairBusterAction[] pair = new PairBusterAction[busters.length];
 
+                List<Map<GhostStatus, List<Buster>>> maps = new ArrayList<>();
+                Map<GhostStatus, List<Buster>> map = new HashMap<>();
+                for (GhostStatus ghost : getKnownGhosts()) {
+                    map.put(ghost, new ArrayList<>());
+                }
+                maps.add(map);
+
                 for (int i = 0; i < busters.length; i++) {
-                    Buster buster = busters[i];
-                    GhostStatus targetGhost = null;
-                    for (GhostStatus status : ghostStatuses) {
-                        long minWeight = Long.MAX_VALUE;
-                        if (status.state == GhostPosState.FOUND) {
-                            long weight = buster.squareDistTo(status.x, status.y) / SQUARE_MOVEMENT_RANGE +
-                                    status.stamina
-                                    + base.squareDistTo(status.x, status.y) / SQUARE_MOVEMENT_RANGE;
-                            if (weight < minWeight) {
-                                targetGhost = status;
-                            }
-                        }
+                    maps = permute(busters[i], maps);
+                }
+
+                Map<GhostStatus, List<Buster>> best = findBest(maps, this::evaluate);
+
+                //TODO: map the best input value
+
+                return pair;
+            }
+
+            //TODO: how to use the stamina on the formula?
+            double evaluate(Map<GhostStatus, List<Buster>> values) {
+                double totalWeight = 0.0;
+                for (Entry<GhostStatus, List<Buster>> entry : values.entrySet()) {
+                    GhostStatus ghost = entry.getKey();
+                    List<Buster> busters = entry.getValue();
+                    List<Double> dists = busters.stream()
+                            .map(b -> b.distTo(ghost.x, ghost.y) / MOVEMENT_RANGE)
+                            .sorted(Comparator.naturalOrder())
+                            .collect(Collectors.toList());
+
+                    double weight = dists.get(0);
+                    int currentStamina = ghost.stamina;
+                    for (int i = 1; i < dists.size(); i++) {
+                        weight += i * (dists.get(i) - dists.get(i - 1));
                     }
 
-                    double dist = (targetGhost.x - buster.getX()) * (targetGhost.x - buster.getX())
-                            + (targetGhost.y - buster.getY()) * (targetGhost.y - buster.getY());
-                    if (dist < SQUARE_MAX_BUST_RANGE && dist > SQUARE_MIN_BUST_RANGE) {
-                        pair[i] = new PairBusterAction(buster, new Bust(targetGhost.id, "Trapping"));
-                    } else {
-                        pair[i] = new PairBusterAction(buster, new Move(targetGhost.x, targetGhost.y, "Trapping"));
+                    weight += Math.hypot(ghost.x - base.x, ghost.y - base.y);
+
+                    totalWeight += weight;
+                }
+
+                return totalWeight;
+            }
+
+            static <K, T> Map<K, List<T>> findBest(
+                    List<Map<K, List<T>>> values,
+                    Function<Map<K, List<T>>, Double> evaluate) {
+
+                double min = Double.POSITIVE_INFINITY;
+                Map<K, List<T>> best = null;
+                for (Map<K, List<T>> value : values) {
+                    double cost = evaluate.apply(value);
+                    if (cost < min) {
+                        min = cost;
+                        best = value;
                     }
                 }
 
-                return pair;
+                return best;
+            }
+
+            static <K, T> List<Map<K, List<T>>> permute(T entry, List<Map<K, List<T>>> values) {
+                List<Map<K, List<T>>> output = new ArrayList<>();
+
+                for (Map<K, List<T>> value : values) {
+                    for (K key : value.keySet()) {
+                        Map<K, List<T>> copy = new HashMap<>(value);
+                        List<T> listCopy = new ArrayList<>(copy.get(key));
+                        listCopy.add(entry);
+                        copy.put(key, listCopy);
+                        output.add(copy);
+                    }
+                }
+
+                return output;
+            }
+
+            private List<GhostStatus> getKnownGhosts() {
+                return Arrays.asList(ghostStatuses).stream()
+                        .filter(ghostStatuses -> ghostStatuses.state == GhostPosState.FOUND)
+                        .collect(Collectors.toList());
             }
         }
     }
