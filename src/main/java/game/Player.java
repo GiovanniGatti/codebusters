@@ -412,6 +412,8 @@ final class Player {
                             new Move(best.genes[i][0], best.genes[i][1], "Exploring"));
                 }
 
+                System.err.println("best score: " + maxScore);
+
                 return actions;
             }
 
@@ -488,8 +490,9 @@ final class Player {
 
                     for (int g = 0; g < genes.length; g++) {
 
-                        int xi = bustersPositions[g % busters.length][0];
-                        int yi = bustersPositions[g % busters.length][1];
+                        int busterId = g % busters.length;
+                        int xi = bustersPositions[busterId][0];
+                        int yi = bustersPositions[busterId][1];
 
                         int xt = genes[g][0];
                         int yt = genes[g][1];
@@ -497,8 +500,8 @@ final class Player {
                         int[] move = move(xi, yi, xt, yt);
                         int x = move[0];
                         int y = move[1];
-                        bustersPositions[g % busters.length][0] = x;
-                        bustersPositions[g % busters.length][1] = y;
+                        bustersPositions[busterId][0] = x;
+                        bustersPositions[busterId][1] = y;
 
                         int upperX = (x - FOW_RANGE) / MAP_RESOLUTION;
                         int upperY = (y - FOW_RANGE) / MAP_RESOLUTION;
