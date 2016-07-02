@@ -9,6 +9,7 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.Scanner;
 import java.util.function.IntSupplier;
+import java.util.stream.Collectors;
 
 final class Player {
 
@@ -49,6 +50,7 @@ final class Player {
 
         private int round = 0;
 
+        Base base;
         private final Explorer explorer;
         private final Trapper trapper;
 
@@ -69,11 +71,11 @@ final class Player {
                 this.targetPoints[i] = new TargetPoint(-1, -1, BusterRole.NONE);
             }
 
-            Base base;
+
             if (myTeamId == 0) {
-                base = new Base(0, 0);
+                base = new Base(0, 0, 0);
             } else {
-                base = new Base(16000, 9000);
+                base = new Base(16000, 9000, 1);
             }
 
             this.explorer = new Explorer(bustersPerPlayer);
@@ -93,10 +95,13 @@ final class Player {
             List<Buster> explorers = new ArrayList<>();
             List<Buster> trappers = new ArrayList<>();
 
+            List<Buster> available = getAvailableBusters();
+            PairBusterAction[] returnToBase = returnToBase();
+
             if (ghosts.isEmpty()) {
-                explorers.addAll(busters);
+                explorers.addAll(available);
             } else {
-                for (Buster buster : busters) {
+                for (Buster buster : available) {
                     if (buster.getId() == 0) {
                         explorers.add(buster);
                     } else {
@@ -116,6 +121,7 @@ final class Player {
             System.err.println(System.currentTimeMillis() - beforeTrapping);
 
             List<PairBusterAction> sorted = new ArrayList<>();
+            sorted.addAll(Arrays.asList(returnToBase));
             sorted.addAll(Arrays.asList(pairBusterActions));
             sorted.addAll(Arrays.asList(trapperActions));
             Collections.sort(sorted);
@@ -163,6 +169,36 @@ final class Player {
                     enemyBusters.add(new Player.Buster(entityId, x, y, state, value));
                 }
             }
+        }
+
+        private List<Buster> getAvailableBusters() {
+            return busters.stream()
+                    .filter(b -> b.getState() != BusterState.CARRYING_GHOST)
+                    .collect(Collectors.toList());
+        }
+
+        //TODO: optimize it
+        private PairBusterAction[] returnToBase() {
+            List<Buster> nonAvailableBusters = getNonAvailableBusters();
+            PairBusterAction[] pair = new PairBusterAction[nonAvailableBusters.size()];
+            for (int i = 0; i < pair.length; i++) {
+                Buster buster = nonAvailableBusters.get(i);
+                if (buster.squareDistTo(base.x, base.y) < 1600 * 1600) {
+                    pair[i] = new PairBusterAction(buster, new Release("Releasing"));
+                } else {
+                    pair[i] = new PairBusterAction(buster, new Move(base.x, base.y, "Delivering"));
+                }
+            }
+            return pair;
+        }
+
+        /**
+         * TODO: optimize it
+         */
+        private List<Buster> getNonAvailableBusters() {
+            return busters.stream()
+                    .filter(b -> b.getState() == BusterState.CARRYING_GHOST)
+                    .collect(Collectors.toList());
         }
 
         private static class TargetPoint {
@@ -565,10 +601,12 @@ final class Player {
     static class Base {
         int x;
         int y;
+        int myTeamId;
 
-        Base(int x, int y) {
+        Base(int x, int y, int myTeamId) {
             this.x = x;
             this.y = y;
+            this.myTeamId = myTeamId;
         }
 
         public long squareDistTo(int x, int y) {
