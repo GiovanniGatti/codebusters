@@ -55,6 +55,23 @@ public class Cal {
                     // lower base
                     map[i][j] = 0.0;
                 }
+
+                // closest base corner
+                if (i <= 15 && j >= 30) {
+                    if (myTeamId == 0) {
+                        map[i][j] = 1.0;
+                    } else {
+                        map[i][j] = 0.8;
+                    }
+                }
+
+                if (i >= 65 && j <= 15) {
+                    if (myTeamId == 0) {
+                        map[i][j] = 0.8;
+                    } else {
+                        map[i][j] = 1.0;
+                    }
+                }
             }
         }
 
@@ -72,6 +89,7 @@ public class Cal {
 //        updateMap(map, points[1][0], points[1][1]);
 
 
+        /*
         int[][] plan = planner(map, 1000, 1000, 15000, 8000);
 
         int x = 1000;
@@ -97,7 +115,7 @@ public class Cal {
         for (int i = 0; i < plan.length; i++) {
             System.out.println(movement[i][0] + " " + movement[i][1]);
             updateMap(map, movement[i][0], movement[i][1]);
-        }
+        }*/
 
         /*
 
