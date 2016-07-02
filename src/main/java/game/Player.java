@@ -28,22 +28,6 @@ final class Player {
     }
 
     static class RoleBasedAI extends AI {
-
-        static final int MAP_X_SIZE = 16_000;
-        static final int MAP_Y_SIZE = 9_000;
-        static final int MAP_RESOLUTION = 200;
-
-        static final int MOVEMENT_RANGE = 800;
-
-        static final double BASE_RANGE = 1_600.0;
-
-        // y = a * x + b (map diagonal)
-        static final double B = ((double) MAP_Y_SIZE / MAP_RESOLUTION);
-        static final double A = -B / (((double) MAP_X_SIZE) / MAP_RESOLUTION);
-
-        static final int MAP_X_CENTRAL_POINT = (MAP_X_SIZE / MAP_RESOLUTION) / 2;
-        static final int MAP_Y_CENTRAL_POINT = (MAP_Y_SIZE / MAP_RESOLUTION) / 2;
-
         static final int FOW_RANGE = 2200;
         static final int SQUARE_FOW_RANGE = FOW_RANGE * FOW_RANGE;
 
@@ -54,12 +38,19 @@ final class Player {
 
         private final int myTeamId;
         private final TargetPoint[] targetPoints;
-        private final GhostStatus[] ghostStatuses;
-        private int knownGhosts;
+
+        private static final int MOVEMENT_RANGE = 800;
+        private static final int SQUARE_MOVEMENT_RANGE = MOVEMENT_RANGE * MOVEMENT_RANGE;
+
+        static final int MIN_BUST_RANGE = 900;
+        static final int SQUARE_MIN_BUST_RANGE = MIN_BUST_RANGE * MIN_BUST_RANGE;
+        static final int MAX_BUST_RANGE = 1760;
+        static final int SQUARE_MAX_BUST_RANGE = MAX_BUST_RANGE * MAX_BUST_RANGE;
 
         private int round = 0;
 
         private final Explorer explorer;
+        private final Trapper trapper;
 
         // round variables
         private List<Buster> busters;
@@ -78,13 +69,15 @@ final class Player {
                 this.targetPoints[i] = new TargetPoint(-1, -1, BusterRole.NONE);
             }
 
-            this.knownGhosts = 0;
-            this.ghostStatuses = new GhostStatus[ghostCount];
-            for (int i = 0; i < ghostStatuses.length; i++) {
-                this.ghostStatuses[i] = new GhostStatus(0, 0, GhostPosState.UNKNOWN);
+            Base base;
+            if (myTeamId == 0) {
+                base = new Base(0, 0);
+            } else {
+                base = new Base(16000, 9000);
             }
 
             this.explorer = new Explorer(bustersPerPlayer);
+            this.trapper = new Trapper(ghostCount, base);
         }
 
         @Override
@@ -92,13 +85,39 @@ final class Player {
             // TODO: implement
             loadInputState();
 
-            for (GhostStatus ghostStatuse : ghostStatuses) {
-                System.err.println(ghostStatuse);
+            long start = System.currentTimeMillis();
+            for (GhostStatus ghostStatus : trapper.ghostStatuses) {
+                System.err.println(ghostStatus);
             }
 
-            PairBusterAction[] pairBusterActions = explorer.find(round, busters.toArray(new Buster[busters.size()]));
+            List<Buster> explorers = new ArrayList<>();
+            List<Buster> trappers = new ArrayList<>();
 
-            List<PairBusterAction> sorted = Arrays.asList(pairBusterActions);
+            if (ghosts.isEmpty()) {
+                explorers.addAll(busters);
+            } else {
+                for (Buster buster : busters) {
+                    if (buster.getId() == 0) {
+                        explorers.add(buster);
+                    } else {
+                        trappers.add(buster);
+                    }
+                }
+            }
+
+            long beforeAction = System.currentTimeMillis();
+            PairBusterAction[] pairBusterActions = explorer.find(round, explorers.toArray(new Buster[explorers.size()]));
+
+            System.err.println(System.currentTimeMillis() - beforeAction);
+
+            long beforeTrapping = System.currentTimeMillis();
+            PairBusterAction[] trapperActions = trapper.find(trappers.toArray(new Buster[trappers.size()]));
+
+            System.err.println(System.currentTimeMillis() - beforeTrapping);
+
+            List<PairBusterAction> sorted = new ArrayList<>();
+            sorted.addAll(Arrays.asList(pairBusterActions));
+            sorted.addAll(Arrays.asList(trapperActions));
             Collections.sort(sorted);
 
             Action[] actions = new Action[sorted.size()];
@@ -108,6 +127,9 @@ final class Player {
             }
 
             round++;
+
+            System.err.println(System.currentTimeMillis() - start);
+            System.err.println(actions.length);
             return actions;
         }
 
@@ -134,14 +156,9 @@ final class Player {
                     busters.add(new Player.Buster(entityId, x, y, state, value));
                     explorer.update(new ExploredPoint(x, y));
                 } else if (entityType == -1) {
-                    ghosts.add(new Player.Ghost(entityId, x, y, state, value));
-
-                    if (ghostStatuses[i].state == GhostPosState.UNKNOWN) {
-                        ghostStatuses[i].x = x;
-                        ghostStatuses[i].y = y;
-                        ghostStatuses[i].state = GhostPosState.FOUND;
-                        knownGhosts++;
-                    }
+                    Ghost ghost = new Ghost(entityId, x, y, state, value);
+                    ghosts.add(ghost);
+                    trapper.update(ghost, round);
                 } else {
                     enemyBusters.add(new Player.Buster(entityId, x, y, state, value));
                 }
@@ -167,11 +184,17 @@ final class Player {
         private static class GhostStatus {
             int x, y;
             GhostPosState state;
+            int stamina;
+            int round;
+            int id;
 
-            private GhostStatus(int x, int y, GhostPosState state) {
+            private GhostStatus(int x, int y, GhostPosState state, int stamina, int id, int round) {
                 this.x = x;
                 this.y = y;
                 this.state = state;
+                this.stamina = stamina;
+                this.id = id;
+                this.round = round;
             }
 
             @Override
@@ -314,6 +337,62 @@ final class Player {
                     this.y = y;
                     this.going = true;
                 }
+            }
+        }
+
+        static class Trapper {
+
+            private int knownGhosts;
+            private GhostStatus[] ghostStatuses;
+            private Base base;
+
+            Trapper(int numberOfGhosts, Base base) {
+                ghostStatuses = new GhostStatus[numberOfGhosts];
+                this.ghostStatuses = new GhostStatus[numberOfGhosts];
+                for (int i = 0; i < ghostStatuses.length; i++) {
+                    this.ghostStatuses[i] = new GhostStatus(0, 0, GhostPosState.UNKNOWN, 0, i, 0);
+                }
+                this.base = base;
+                knownGhosts = 0;
+            }
+
+            void update(Ghost ghost, int round) {
+                ghostStatuses[ghost.getId()].x = ghost.getX();
+                ghostStatuses[ghost.getId()].y = ghost.getY();
+                ghostStatuses[ghost.getId()].state = GhostPosState.FOUND;
+                ghostStatuses[ghost.getId()].round = round;
+                ghostStatuses[ghost.getId()].stamina = ghost.getStamina();
+                knownGhosts++;
+            }
+
+            PairBusterAction[] find(Buster... busters) {
+                PairBusterAction[] pair = new PairBusterAction[busters.length];
+
+                for (int i = 0; i < busters.length; i++) {
+                    Buster buster = busters[i];
+                    GhostStatus targetGhost = null;
+                    for (GhostStatus status : ghostStatuses) {
+                        long minWeight = Long.MAX_VALUE;
+                        if (status.state == GhostPosState.FOUND) {
+                            long weight = buster.squareDistTo(status.x, status.y) / SQUARE_MOVEMENT_RANGE +
+                                    status.stamina
+                                    + base.squareDistTo(status.x, status.y) / SQUARE_MOVEMENT_RANGE;
+                            if (weight < minWeight) {
+                                targetGhost = status;
+                            }
+                        }
+                    }
+
+                    double dist = (targetGhost.x - buster.getX()) * (targetGhost.x - buster.getX())
+                            + (targetGhost.y - buster.getY()) * (targetGhost.y - buster.getY());
+                    if (dist < SQUARE_MAX_BUST_RANGE && dist > SQUARE_MIN_BUST_RANGE) {
+                        pair[i] = new PairBusterAction(buster, new Bust(targetGhost.id, "Trapping"));
+                    } else {
+                        pair[i] = new PairBusterAction(buster, new Move(targetGhost.x, targetGhost.y, "Trapping"));
+                    }
+                }
+
+                return pair;
             }
         }
     }
@@ -481,6 +560,20 @@ final class Player {
 
     enum BusterState {
         IDLE, CARRYING_GHOST, STUNNED, TRAPPING
+    }
+
+    static class Base {
+        int x;
+        int y;
+
+        Base(int x, int y) {
+            this.x = x;
+            this.y = y;
+        }
+
+        public long squareDistTo(int x, int y) {
+            return (this.x - x) * (this.x - x) + (this.y - y) * (this.y - y);
+        }
     }
 
     /**
