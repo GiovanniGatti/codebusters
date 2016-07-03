@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Scanner;
 import java.util.function.Function;
@@ -93,7 +94,7 @@ final class Player {
 
             long start = System.currentTimeMillis();
             for (GhostStatus ghostStatus : trapper.ghostStatuses) {
-                System.err.println(ghostStatus);
+                System.err.println(ghostStatus.id + ": " + ghostStatus);
             }
 
             List<Buster> explorers = new ArrayList<>();
@@ -153,8 +154,6 @@ final class Player {
             this.enemyBusters = new ArrayList<>(bustersPerPlayer);
             this.ghosts = new ArrayList<>(ghostCount);
 
-            List<GhostStatus> knownGhosts = trapper.getKnownGhosts();
-
             int entities = readInput(); // the number of busters and ghosts visible to you
             for (int i = 0; i < entities; i++) {
                 int entityId = readInput();
@@ -168,16 +167,29 @@ final class Player {
                     Buster buster = new Buster(entityId, x, y, state, value);
                     busters.add(buster);
                     explorer.update(new ExploredPoint(x, y));
-
-                    knownGhosts.stream()
-                            .filter(g -> buster.squareDistTo(g.x, g.y) < SQUARE_MIN_BUST_RANGE)
-                            .forEach(g -> trapper.update(g.id, GhostPosState.LOST, round));
                 } else if (entityType == -1) {
                     Ghost ghost = new Ghost(entityId, x, y, state, value);
                     ghosts.add(ghost);
                     trapper.update(ghost, round);
                 } else {
-                    enemyBusters.add(new Player.Buster(entityId, x, y, state, value));
+                    Buster buster = new Buster(entityId, x, y, state, value);
+                    enemyBusters.add(buster);
+                    if (buster.getState() == BusterState.CARRYING_GHOST) {
+                        trapper.update(buster.getValue(), GhostPosState.LOST, round);
+                    }
+                }
+            }
+
+            for (GhostStatus status : trapper.getKnownGhosts()) {
+                for (Buster buster : busters) {
+                    if (buster.squareDistTo(status.x, status.y) < SQUARE_MAX_BUST_RANGE) {
+                        Optional<Ghost> maybeGhost = ghosts.stream()
+                                .filter(g -> g.getId() == status.id)
+                                .findFirst();
+                        if (!maybeGhost.isPresent()) {
+                            trapper.update(status.id, GhostPosState.LOST, 0);
+                        }
+                    }
                 }
             }
         }
@@ -195,6 +207,7 @@ final class Player {
             for (int i = 0; i < pair.length; i++) {
                 Buster buster = nonAvailableBusters.get(i);
                 if (buster.squareDistTo(base.x, base.y) < 1600 * 1600) {
+                    trapper.update(buster.getValue(), GhostPosState.TRAPPED, round);
                     pair[i] = new PairBusterAction(buster, new Release("Releasing"));
                 } else {
                     pair[i] = new PairBusterAction(buster, new Move(base.x, base.y, "Delivering"));
