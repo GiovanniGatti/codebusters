@@ -102,7 +102,7 @@ final class Player {
             List<Buster> available = getAvailableBusters();
             PairBusterAction[] returnToBase = returnToBase();
 
-            if (ghosts.isEmpty()) {
+            if (trapper.getKnownGhosts().isEmpty()) {
                 explorers.addAll(available);
             } else {
                 for (Buster buster : available) {
@@ -145,13 +145,15 @@ final class Player {
 
         @Override
         void reset() {
-
+            //ILB
         }
 
         private void loadInputState() {
             this.busters = new ArrayList<>(bustersPerPlayer);
             this.enemyBusters = new ArrayList<>(bustersPerPlayer);
             this.ghosts = new ArrayList<>(ghostCount);
+
+            List<GhostStatus> knownGhosts = trapper.getKnownGhosts();
 
             int entities = readInput(); // the number of busters and ghosts visible to you
             for (int i = 0; i < entities; i++) {
@@ -163,8 +165,13 @@ final class Player {
                 int value = readInput();
 
                 if (entityType == myTeamId) {
-                    busters.add(new Player.Buster(entityId, x, y, state, value));
+                    Buster buster = new Buster(entityId, x, y, state, value);
+                    busters.add(buster);
                     explorer.update(new ExploredPoint(x, y));
+
+                    knownGhosts.stream()
+                            .filter(g -> buster.squareDistTo(g.x, g.y) < SQUARE_MIN_BUST_RANGE)
+                            .forEach(g -> trapper.update(g.id, GhostPosState.LOST, round));
                 } else if (entityType == -1) {
                     Ghost ghost = new Ghost(entityId, x, y, state, value);
                     ghosts.add(ghost);
@@ -409,7 +416,6 @@ final class Player {
                 knownGhosts = 0;
             }
 
-            //TODO: what happen when ghosts desappered?
             void update(Ghost ghost, int round) {
                 ghostStatuses[ghost.getId()].x = ghost.getX();
                 ghostStatuses[ghost.getId()].y = ghost.getY();
@@ -417,6 +423,12 @@ final class Player {
                 ghostStatuses[ghost.getId()].round = round;
                 ghostStatuses[ghost.getId()].stamina = ghost.getStamina();
                 knownGhosts++;
+            }
+
+            void update(int ghostId, GhostPosState state, int round) {
+                ghostStatuses[ghostId].state = state;
+                ghostStatuses[ghostId].round = round;
+                knownGhosts--;
             }
 
             PairBusterAction[] find(Buster... busters) {
@@ -435,9 +447,18 @@ final class Player {
 
                 Map<GhostStatus, List<Buster>> best = findBest(maps, this::evaluate);
 
-                //TODO: map the best input value
-
-                //TODO: if ghost in range: Bust! else move to
+                int i = 0;
+                for (Entry<GhostStatus, List<Buster>> entries : best.entrySet()) {
+                    GhostStatus key = entries.getKey();
+                    for (Buster buster : entries.getValue()) {
+                        long distTo = buster.squareDistTo(key.x, key.y);
+                        if (distTo >= SQUARE_MIN_BUST_RANGE && distTo <= SQUARE_MAX_BUST_RANGE) {
+                            pair[i++] = new PairBusterAction(buster, new Bust(key.id, "Trapping"));
+                        } else {
+                            pair[i++] = new PairBusterAction(buster, new Move(key.x, key.y, "Trapping"));
+                        }
+                    }
+                }
 
                 return pair;
             }
@@ -455,6 +476,7 @@ final class Player {
 
                     if (!busters.isEmpty()) {
                         List<Double> dists = busters.stream()
+                                //TODO: map operation can be cached
                                 .map(b -> b.distTo(ghost.x, ghost.y) / MOVEMENT_RANGE)
                                 .sorted(Comparator.naturalOrder())
                                 .collect(Collectors.toList());
@@ -522,6 +544,7 @@ final class Player {
                 return output;
             }
 
+            //TODO: results can be cached
             private List<GhostStatus> getKnownGhosts() {
                 return Arrays.asList(ghostStatuses).stream()
                         .filter(ghostStatuses -> ghostStatuses.state == GhostPosState.FOUND)
