@@ -393,7 +393,7 @@ final class Player {
             private static boolean isExplored(List<ExploredPoint> exploredPoints, int x, int y) {
                 for (ExploredPoint p1 : exploredPoints) {
 
-                    if ((p1.x - x) * (p1.x - x) + (p1.y - y) * (p1.y - y) < SQUARE_FOW_RANGE) {
+                    if ((p1.x - x) * (p1.x - x) + (p1.y - y) * (p1.y - y) < 2 * SQUARE_FOW_RANGE) {
                         return true;
                     }
                 }
