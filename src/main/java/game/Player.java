@@ -610,6 +610,8 @@ final class Player {
                 return null;
             }
 
+            //TODO: idea: compute all enemies possible positions and send busters to each possible interception point
+            // and then find the best combination
 //            List<Map<InterceptionPoint, Buster>> permutate(Buster buster, List<Map<InterceptionPoint, Buster>> points){
 //                for(Map<InterceptionPoint, Buster> point : points){
 //                    for(InterceptionPoint interception : point.keySet()){
