@@ -32,6 +32,7 @@ public class Explorer {
     static final int SQUARE_FOW_RANGE = FOW_RANGE * FOW_RANGE;
 
     private double[][] map;
+    private final double totalScore;
     private final Buster[] busters;
     private final Random random;
 
@@ -39,10 +40,18 @@ public class Explorer {
         Buster b1 = new Buster(0, 1195, 2020, 0, 0);
         Buster b2 = new Buster(0, 1992, 1148, 0, 0);
         double[][] map = generateMap(0);
-        Explorer explorer = new Explorer(map, b1, b2);
+
+        double totalScore = 0.0;
+        for (int j = 0; j < map.length; j++) {
+            for (int i = 0; i < map[0].length; i++) {
+                totalScore += map[j][i];
+            }
+        }
+
+        Explorer explorer = new Explorer(map, totalScore, b1, b2);
 
         long currentTimeMillis = System.currentTimeMillis();
-        Chromosome chromosome = explorer.find(10, 16, 8);
+        Chromosome chromosome = explorer.find(20, 16, 8);
         System.out.println(System.currentTimeMillis() - currentTimeMillis);
         int[][] movement = new int[chromosome.genes.length + chromosome.busters.length][2];
 
@@ -112,8 +121,9 @@ public class Explorer {
         return map;
     }
 
-    Explorer(double[][] map, Buster... busters) {
+    Explorer(double[][] map, double totalScore, Buster... busters) {
         this.map = map;
+        this.totalScore = totalScore;
         this.busters = busters;
         this.random = new Random();
     }
@@ -126,8 +136,8 @@ public class Explorer {
 
         // Generate unique chromosomes in the pool
         for (int i = 0; i < popSize; i++) {
-            Chromosome chromosome = new Chromosome(movements, busters);
-            chromosome.score(map);
+            Chromosome chromosome = new Chromosome(movements, map, totalScore, busters);
+            chromosome.score();
             pool.add(chromosome);
         }
 
@@ -148,8 +158,8 @@ public class Explorer {
                 n2.mutate();
 
                 // score new nodes
-                n1.score(map);
-                n2.score(map);
+                n1.score();
+                n2.score();
 
                 // Add to the new pool
                 newPool.add(n1);
@@ -206,15 +216,25 @@ public class Explorer {
     private static class Chromosome {
         private final double crossoverRate;
         private final double mutationRate;
+        private final double[][] map;
+        private final double mapTotalScore;
         private final Buster[] busters;
         private final Random random;
 
         private int[][] genes;
         private double score;
 
-        Chromosome(int numberOfMovements, double crossoverRate, double mutationRate, Buster... busters) {
+        Chromosome(int numberOfMovements,
+                   double crossoverRate,
+                   double mutationRate,
+                   double[][] map,
+                   double mapTotalScore,
+                   Buster... busters) {
+
             this.crossoverRate = crossoverRate;
             this.mutationRate = mutationRate;
+            this.map = map;
+            this.mapTotalScore = mapTotalScore;
             this.busters = busters;
             random = new Random();
             genes = new int[numberOfMovements * busters.length][2];
@@ -235,11 +255,11 @@ public class Explorer {
             score = 0.0;
         }
 
-        Chromosome(int numberOfMovements, Buster... busters) {
-            this(numberOfMovements, .7, .001, busters);
+        Chromosome(int numberOfMovements, double[][] map, double mapTotalScore, Buster... busters) {
+            this(numberOfMovements, .7, .001, map, mapTotalScore, busters);
         }
 
-        void score(double[][] map) {
+        void score() {
             boolean[][] mask = new boolean[map.length][map[0].length];
             double score = 0.0;
 
@@ -319,7 +339,7 @@ public class Explorer {
                 }
             }
 
-            this.score = score;
+            this.score = 1.0 / (mapTotalScore - score);
         }
 
         static int[] move(int x, int y, int targetX, int targetY) {
