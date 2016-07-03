@@ -221,14 +221,14 @@ final class Player {
             NONE, EXPLORER, TRAPPER, STEALER, BODYGUARD
         }
 
-        private static class GhostStatus {
+        static class GhostStatus {
             int x, y;
             GhostPosState state;
             int stamina;
             int round;
             int id;
 
-            private GhostStatus(int x, int y, GhostPosState state, int stamina, int id, int round) {
+            GhostStatus(int x, int y, GhostPosState state, int stamina, int id, int round) {
                 this.x = x;
                 this.y = y;
                 this.state = state;
@@ -409,6 +409,7 @@ final class Player {
                 knownGhosts = 0;
             }
 
+            //TODO: what happen when ghosts desappered?
             void update(Ghost ghost, int round) {
                 ghostStatuses[ghost.getId()].x = ghost.getX();
                 ghostStatuses[ghost.getId()].y = ghost.getY();
@@ -436,32 +437,56 @@ final class Player {
 
                 //TODO: map the best input value
 
+                //TODO: if ghost in range: Bust! else move to
+
                 return pair;
             }
 
-            //TODO: how to use the stamina on the formula?
             double evaluate(Map<GhostStatus, List<Buster>> values) {
-                double totalWeight = 0.0;
+                return evaluate(values, base);
+            }
+
+            static double evaluate(Map<GhostStatus, List<Buster>> values, Base base) {
+                double maxWeight = Double.NEGATIVE_INFINITY;
+                int capturedGhosts = 0;
                 for (Entry<GhostStatus, List<Buster>> entry : values.entrySet()) {
                     GhostStatus ghost = entry.getKey();
                     List<Buster> busters = entry.getValue();
-                    List<Double> dists = busters.stream()
-                            .map(b -> b.distTo(ghost.x, ghost.y) / MOVEMENT_RANGE)
-                            .sorted(Comparator.naturalOrder())
-                            .collect(Collectors.toList());
 
-                    double weight = dists.get(0);
-                    int currentStamina = ghost.stamina;
-                    for (int i = 1; i < dists.size(); i++) {
-                        weight += i * (dists.get(i) - dists.get(i - 1));
+                    if (!busters.isEmpty()) {
+                        List<Double> dists = busters.stream()
+                                .map(b -> b.distTo(ghost.x, ghost.y) / MOVEMENT_RANGE)
+                                .sorted(Comparator.naturalOrder())
+                                .collect(Collectors.toList());
+
+
+                        int currentStamina = ghost.stamina;
+                        int turns = 0;
+                        double weight = dists.get(0);
+                        int i = 1;
+                        do {
+                            if (i < dists.size()) {
+                                double tmp = i * (dists.get(i) - dists.get(i - 1));
+                                currentStamina -= tmp;
+                                turns += tmp;
+                                i++;
+                            } else {
+                                currentStamina -= i;
+                                turns++;
+                            }
+                        } while (currentStamina > 0);
+
+                        weight += turns + (Math.hypot(ghost.x - base.x, ghost.y - base.y) / MOVEMENT_RANGE);
+
+                        if (weight > maxWeight) {
+                            maxWeight = weight;
+                        }
+
+                        capturedGhosts++;
                     }
-
-                    weight += Math.hypot(ghost.x - base.x, ghost.y - base.y);
-
-                    totalWeight += weight;
                 }
 
-                return totalWeight;
+                return maxWeight / capturedGhosts;
             }
 
             static <K, T> Map<K, List<T>> findBest(
