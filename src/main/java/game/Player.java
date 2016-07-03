@@ -593,6 +593,61 @@ final class Player {
                         .collect(Collectors.toList());
             }
         }
+
+        static class Stealer {
+
+            private final Base enemyBase;
+
+            Stealer(Base enemyBase) {
+                this.enemyBase = enemyBase;
+            }
+
+            void update() {
+                //TODO: update enemy with ghots positions
+            }
+
+            PairBusterAction[] find(Buster... busters) {
+                return null;
+            }
+
+//            List<Map<InterceptionPoint, Buster>> permutate(Buster buster, List<Map<InterceptionPoint, Buster>> points){
+//                for(Map<InterceptionPoint, Buster> point : points){
+//                    for(InterceptionPoint interception : point.keySet()){
+//                        if(point.get(interception) != null && interception.round <= )
+//                    }
+//                }
+//            }
+
+            static class InterceptionPoint {
+                final int enemyBusterId;
+                final int x;
+                final int y;
+                final int round;
+
+                InterceptionPoint(int enemyBusterId, int x, int y, int round) {
+                    this.enemyBusterId = enemyBusterId;
+                    this.x = x;
+                    this.y = y;
+                    this.round = round;
+                }
+
+                @Override
+                public boolean equals(Object o) {
+                    if (this == o) return true;
+                    if (o == null || getClass() != o.getClass()) return false;
+                    InterceptionPoint that = (InterceptionPoint) o;
+                    return enemyBusterId == that.enemyBusterId &&
+                            x == that.x &&
+                            y == that.y &&
+                            round == that.round;
+                }
+
+                @Override
+                public int hashCode() {
+                    return Objects.hash(enemyBusterId, x, y, round);
+                }
+            }
+        }
     }
 
     static abstract class AI {
@@ -763,12 +818,12 @@ final class Player {
     static class Base {
         int x;
         int y;
-        int myTeamId;
+        int baseId;
 
-        Base(int x, int y, int myTeamId) {
+        Base(int x, int y, int baseId) {
             this.x = x;
             this.y = y;
-            this.myTeamId = myTeamId;
+            this.baseId = baseId;
         }
 
         public long squareDistTo(int x, int y) {
