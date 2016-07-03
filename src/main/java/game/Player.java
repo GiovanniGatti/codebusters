@@ -140,7 +140,10 @@ final class Player {
             round++;
 
             System.err.println(System.currentTimeMillis() - start);
-            System.err.println(actions.length);
+
+            System.err.println(explorer.getExploredMapStatus());
+            System.err.println(System.currentTimeMillis() - start);
+
             return actions;
         }
 
@@ -370,6 +373,32 @@ final class Player {
                 } while (!isExplored(exploredPoints, buster.getX(), buster.getY(), x, y));
 
                 return new ToExplorePoint(x, y);
+            }
+
+            private double getExploredMapStatus() {
+                //0.01% of map total area
+                double explored = 0.0;
+                for (int i = 0; i < 14400; i++) {
+                    int x = random.nextInt(16000);
+                    int y = random.nextInt(9000);
+
+                    if (isExplored(exploredPoints, x, y)) {
+                        explored++;
+                    }
+                }
+
+                return explored / 14400;
+            }
+
+            private static boolean isExplored(List<ExploredPoint> exploredPoints, int x, int y) {
+                for (ExploredPoint p1 : exploredPoints) {
+
+                    if ((p1.x - x) * (p1.x - x) + (p1.y - y) * (p1.y - y) < SQUARE_FOW_RANGE) {
+                        return true;
+                    }
+                }
+
+                return false;
             }
 
             private static boolean isExplored(List<ExploredPoint> exploredPoints, int x, int y, int tx, int ty) {
