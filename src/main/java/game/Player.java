@@ -375,12 +375,12 @@ final class Player {
             private static boolean isExplored(List<ExploredPoint> exploredPoints, int x, int y, int tx, int ty) {
                 for (ExploredPoint p1 : exploredPoints) {
                     for (ExploredPoint p2 : exploredPoints) {
-                        if (crosses(p1, p2, x, y, tx, ty)) {
+                        if (crosses(p1.x, p1.y, p2.x, p2.y, x, y, tx, ty)) {
                             return true;
                         }
                     }
 
-                    if ((p1.x - x) * (p1.x - x) + (p1.y - y) * (p1.y - y) < SQUARE_FOW_RANGE) {
+                    if ((p1.x - tx) * (p1.x - tx) + (p1.y - ty) * (p1.y - ty) < SQUARE_FOW_RANGE) {
                         return true;
                     }
                 }
@@ -392,11 +392,11 @@ final class Player {
              * Return true if segment AB crosses segment CD
              * Source: http://jsfiddle.net/ytr9314a/4/
              */
-            private static boolean crosses(ExploredPoint a, ExploredPoint b, int cx, int cy, int dx, int dy) {
-                boolean aSide = (dx - cx) * (a.y - cy) - (dy - cy) * (a.x - cx) > 0;
-                boolean bSide = (dx - cx) * (b.y - cy) - (dy - cy) * (b.x - cx) > 0;
-                boolean cSide = (b.x - a.x) * (cy - a.y) - (b.y - a.y) * (cx - a.x) > 0;
-                boolean dSide = (b.x - a.x) * (dy - a.y) - (b.y - a.y) * (dx - a.x) > 0;
+            static boolean crosses(int ax, int ay, int bx, int by, int cx, int cy, int dx, int dy) {
+                boolean aSide = (dx - cx) * (ay - cy) - (dy - cy) * (ax - cx) > 0;
+                boolean bSide = (dx - cx) * (by - cy) - (dy - cy) * (bx - cx) > 0;
+                boolean cSide = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax) > 0;
+                boolean dSide = (bx - ax) * (dy - ay) - (by - ay) * (dx - ax) > 0;
                 return aSide != bSide && cSide != dSide;
             }
 

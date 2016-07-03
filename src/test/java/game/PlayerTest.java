@@ -105,4 +105,15 @@ public class PlayerTest implements WithAssertions {
         assertThat(evaluate).isBetween(11.9, 12.1);
     }
 
+    @Test
+    public void crosses() {
+        assertThat(Player.RoleBasedAI.Explorer.crosses(2, 2, 4, 4, 2, 4, 4, 2)).isTrue();
+    }
+
+
+    @Test
+    public void crosses_2() {
+        assertThat(Player.RoleBasedAI.Explorer.crosses(2, 2, 2, 4, 4, 4, 4, 2)).isFalse();
+    }
+
 }
